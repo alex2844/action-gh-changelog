@@ -2,11 +2,12 @@
 set -euo pipefail
 
 function usage() {
-	echo "Использование: $0 [-t <tag>] [-o <output_file>] [-h]"
+	echo "Использование: $0 [-t <tag>] [-o <output_file>] [-s <since_date>] [-u <until_date>] [-r] [-h]"
 	echo "  -t <tag>            Тег, для которого генерируется changelog (по умолчанию: последний тег)."
 	echo "  -o <output_file>    Файл для сохранения результата (по умолчанию: вывод на экран)."
 	echo "  -s <since_date>     Начальная дата для выборки коммитов (например, '2025-01-01' или '1 year ago')."
 	echo "  -u <until_date>     Конечная дата для выборки коммитов."
+	echo "  -r                  Вывести коммиты в виде простого списка (без группировки)."
 	echo "  -h                  Показать эту справку."
 }
 
@@ -114,16 +115,22 @@ function get_api_commits() {
 function get_local_commits_by_tag() {
 	local from_ref="$1"
 	local to_ref="$2"
-	git log --no-merges --pretty=format:"%h|%s|%an" "${from_ref}".."${to_ref}" 2>/dev/null || true
+	local reverse_mode="$3"
+	local reverse_arg=""
+	[[ "${reverse_mode}" == true ]] && reverse_arg="--reverse"
+	git log --no-merges ${reverse_arg} --pretty=format:"%h|%s|%an" "${from_ref}".."${to_ref}" 2>/dev/null || true
 }
 
 function get_local_commits_by_date() {
 	local since_date="$1"
 	local until_date="$2"
+	local reverse_mode="$3"
+	local reverse_arg=""
 	local date_args=()
 	[[ -n "${since_date}" ]] && date_args+=(--since="${since_date}")
 	[[ -n "${until_date}" ]] && date_args+=(--until="${until_date}")
-	git log --no-merges --pretty=format:'%h|%s|%an' "${date_args[@]}" 2>/dev/null || true
+	[[ "${reverse_mode}" == true ]] && reverse_arg="--reverse"
+	git log --no-merges ${reverse_arg} --pretty=format:'%h|%s|%an' "${date_args[@]}" 2>/dev/null || true
 }
 
 function main() {
@@ -131,13 +138,15 @@ function main() {
 	local target_tag_arg=""
 	local since_date=""
 	local until_date=""
+	local raw_list_mode=false
 
-	while getopts ":o:t:s:u:h" opt; do
+	while getopts ":o:t:s:u:rh" opt; do
 		case ${opt} in
 			o ) output_file=${OPTARG};;
 			t ) target_tag_arg=${OPTARG};;
 			s ) since_date=${OPTARG};;
 			u ) until_date=${OPTARG};;
+			r ) raw_list_mode=true;;
 			h ) usage; exit 0;;
 			\? ) error "Неверный флаг: -${OPTARG}. Используйте -h для справки.";;
 			: ) error "Флаг -${OPTARG} требует аргумент.";;
@@ -198,7 +207,7 @@ function main() {
 		echo "   - ✅ Диапазон: ${date_range_info}"
 		echo "🔍 Получение коммитов..."
 		echo "   - Получение локальных коммитов..."
-		all_commits=$(get_local_commits_by_date "${since_date}" "${until_date}")
+		all_commits=$(get_local_commits_by_date "${since_date}" "${until_date}" "${raw_list_mode}")
 	else
 		local target_tag
 		local previous_tag
@@ -236,7 +245,7 @@ function main() {
 
 		echo "🔍 Получение коммитов..."
 		echo "   - Получение локальных коммитов..."
-		all_commits=$(get_local_commits_by_tag "${previous_tag}" "${target_tag}")
+		all_commits=$(get_local_commits_by_tag "${previous_tag}" "${target_tag}" "${raw_list_mode}")
 		if [[ "${use_api}" == true && -n "${token}" ]]; then
 			echo "   - Попытка дополнения данными из GitHub API..."
 			local github_commits=""
@@ -262,24 +271,30 @@ function main() {
 
 	echo "🔍 Генерация списка изменений..."
 	local changelog_content=""
-	local section_content
-	section_content=$(get_commits "^\* feat" "" "${commits}") && changelog_content+="### 🚀 Новые возможности\n${section_content}\n\n"
-	section_content=$(get_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="### 🐛 Исправления\n${section_content}\n\n"
-	section_content=$(get_commits "^\* refactor" "" "${commits}") && changelog_content+="### ✨ Улучшения и оптимизация\n${section_content}\n\n"
-	section_content=$(get_commits "^\* docs" "" "${commits}") && changelog_content+="### 📖 Документация\n${section_content}\n\n"
-	section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="### ⚙️ CI/CD\n${section_content}\n\n"
-	section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)" "${commits}") && changelog_content+="### 🔧 Прочее\n${section_content}\n\n"
-
-	if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
-		local changelog_link
-		if [[ "${previous_tag}" == v* ]]; then
-			changelog_link="https://${git_host}/${repo_path}/compare/${previous_tag}...${target_tag}"
-		else
-			changelog_link="https://${git_host}/${repo_path}/commits/${target_tag}"
-		fi
-		changelog_content+="**Full Changelog**: ${changelog_link}"
+	if [[ "${raw_list_mode}" == true ]]; then
+		echo "   - ℹ️  Выбран режим вывода в виде простого списка."
+		changelog_content="${commits}"
 	else
-		changelog_content=$(echo -e "${changelog_content}" | sed 's/\n\n$//')
+		echo "   - ℹ️  Выбран режим группировки по разделам."
+		local section_content
+		section_content=$(get_commits "^\* feat" "" "${commits}") && changelog_content+="### 🚀 Новые возможности\n${section_content}\n\n"
+		section_content=$(get_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="### 🐛 Исправления\n${section_content}\n\n"
+		section_content=$(get_commits "^\* refactor" "" "${commits}") && changelog_content+="### ✨ Улучшения и оптимизация\n${section_content}\n\n"
+		section_content=$(get_commits "^\* docs" "" "${commits}") && changelog_content+="### 📖 Документация\n${section_content}\n\n"
+		section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="### ⚙️ CI/CD\n${section_content}\n\n"
+		section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)" "${commits}") && changelog_content+="### 🔧 Прочее\n${section_content}\n\n"
+
+		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
+			local changelog_link
+			if [[ "${previous_tag}" == v* ]]; then
+				changelog_link="https://${git_host}/${repo_path}/compare/${previous_tag}...${target_tag}"
+			else
+				changelog_link="https://${git_host}/${repo_path}/commits/${target_tag}"
+			fi
+			changelog_content+="**Full Changelog**: ${changelog_link}"
+		else
+			changelog_content=$(echo -e "${changelog_content}" | sed 's/\n\n$//')
+		fi
 	fi
 	echo "   - ✅ Список изменений сгенерирован."
 
