@@ -5,6 +5,8 @@ function usage() {
 	echo "Использование: $0 [-t <tag>] [-o <output_file>] [-h]"
 	echo "  -t <tag>            Тег, для которого генерируется changelog (по умолчанию: последний тег)."
 	echo "  -o <output_file>    Файл для сохранения результата (по умолчанию: вывод на экран)."
+	echo "  -s <since_date>     Начальная дата для выборки коммитов (например, '2025-01-01' или '1 year ago')."
+	echo "  -u <until_date>     Конечная дата для выборки коммитов."
 	echo "  -h                  Показать эту справку."
 }
 
@@ -109,53 +111,68 @@ function get_api_commits() {
 	echo "${response_body}" | jq -r '.commits[] | .sha[0:7] + "|" + (.commit.message | split("\n")[0]) + "|" + .author.login'
 }
 
-function get_local_commits() {
+function get_local_commits_by_tag() {
 	local from_ref="$1"
 	local to_ref="$2"
 	git log --no-merges --pretty=format:"%h|%s|%an" "${from_ref}".."${to_ref}" 2>/dev/null || true
 }
 
+function get_local_commits_by_date() {
+	local since_date="$1"
+	local until_date="$2"
+	local date_args=()
+	[[ -n "${since_date}" ]] && date_args+=(--since="${since_date}")
+	[[ -n "${until_date}" ]] && date_args+=(--until="${until_date}")
+	git log --no-merges --pretty=format:'%h|%s|%an' "${date_args[@]}" 2>/dev/null || true
+}
+
 function main() {
 	local output_file=""
 	local target_tag_arg=""
+	local since_date=""
+	local until_date=""
 
-	while getopts ":o:t:h" opt; do
+	while getopts ":o:t:s:u:h" opt; do
 		case ${opt} in
 			o ) output_file=${OPTARG};;
 			t ) target_tag_arg=${OPTARG};;
+			s ) since_date=${OPTARG};;
+			u ) until_date=${OPTARG};;
 			h ) usage; exit 0;;
-			\? ) error "Неверный флаг: -${OPTARG}. Используйте -h для справки." ;;
-			: ) error "Флаг -${OPTARG} требует аргумент (имя файла или тега)." ;;
+			\? ) error "Неверный флаг: -${OPTARG}. Используйте -h для справки.";;
+			: ) error "Флаг -${OPTARG} требует аргумент.";;
 		esac
 	done
 
 	check_deps
 
-	echo "🔍 Определение репозитория..."
-	local remote_url=$(git remote get-url origin 2>/dev/null || true)
+	local use_api=false
 	local git_host=""
 	local repo_path=""
-	local use_api=false
-	if [[ -n "${remote_url}" ]]; then
-		if [[ "${remote_url}" =~ https://([^/]+)/(.+) || "${remote_url}" =~ git@([^:]+):(.+) ]]; then
-			git_host="${BASH_REMATCH[1]}"
-			repo_path="${BASH_REMATCH[2]}"
-			repo_path=${repo_path%.git}
-			echo "   - ✅ Удаленный репозиторий найден: ${git_host}/${repo_path}"
-			if [[ "${git_host}" == "github.com" ]]; then
-				echo "   - ℹ️  Обнаружен репозиторий GitHub. Проверка API-зависимостей..."
-				if check_api_deps; then
-					use_api=true
-					echo "   - ✅ API-зависимости найдены."
+	if [[ -z "${since_date}" ]] && [[ -z "${until_date}" ]]; then
+		echo "🔍 Определение репозитория..."
+		local remote_url=$(git remote get-url origin 2>/dev/null || true)
+		if [[ -n "${remote_url}" ]]; then
+			if [[ "${remote_url}" =~ https://([^/]+)/(.+) || "${remote_url}" =~ git@([^:]+):(.+) ]]; then
+				git_host="${BASH_REMATCH[1]}"
+				repo_path="${BASH_REMATCH[2]}"
+				repo_path=${repo_path%.git}
+				echo "   - ✅ Удаленный репозиторий найден: ${git_host}/${repo_path}"
+				if [[ "${git_host}" == "github.com" ]]; then
+					echo "   - ℹ️  Обнаружен репозиторий GitHub. Проверка API-зависимостей..."
+					if check_api_deps; then
+						use_api=true
+						echo "   - ✅ API-зависимости найдены."
+					fi
+				else
+					echo "   - ℹ️  Обнаружен репозиторий на ${git_host}. Используются только локальные коммиты."
 				fi
 			else
-				echo "   - ℹ️  Обнаружен репозиторий на ${git_host}. Используются только локальные коммиты."
+				echo "   - ⚠️  Не удалось распознать формат удаленного URL: ${remote_url}"
 			fi
 		else
-			echo "   - ⚠️  Не удалось распознать формат удаленного URL: ${remote_url}"
+			echo "   - ⚠️  Удаленный репозиторий (origin) не найден. Используются только локальные коммиты."
 		fi
-	else
-		echo "   - ⚠️  Удаленный репозиторий (origin) не найден. Используются только локальные коммиты."
 	fi
 
 	local token=""
@@ -173,53 +190,63 @@ function main() {
 	fi
 
 	echo "🔍 Определение диапазона..."
-	local target_tag
-	local previous_tag
-	if [[ -n "${target_tag_arg}" ]]; then
-		[[ "${target_tag_arg}" != "v"* ]] && target_tag_arg="v${target_tag_arg}"
-		if ! git rev-parse -q --verify "refs/tags/${target_tag_arg}" &>/dev/null; then
-			error "Тег '${target_tag_arg}' не найден в локальном репозитории."
-		fi
-		target_tag="${target_tag_arg}"
-		previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-		echo "   - ℹ️  Используется тег из аргумента: ${target_tag}"
-		echo "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
+	local all_commits=""
+	if [[ -n "${since_date}" ]] || [[ -n "${until_date}" ]]; then
+		echo "   - ℹ️  Выбран режим генерации по датам."
+		local date_range_info="с ${since_date:-начала истории}"
+		[[ -n "${until_date}" ]] && date_range_info+=" по ${until_date}"
+		echo "   - ✅ Диапазон: ${date_range_info}"
+		echo "🔍 Получение коммитов..."
+		echo "   - Получение локальных коммитов..."
+		all_commits=$(get_local_commits_by_date "${since_date}" "${until_date}")
 	else
-		if ! git describe --tags --abbrev=0 &>/dev/null; then
-			echo "   - ℹ️  Теги не найдены, используются все коммиты от начала репозитория"
-			previous_tag=$(git rev-list --max-parents=0 HEAD | head -n 1)
-			target_tag="HEAD"
+		local target_tag
+		local previous_tag
+		if [[ -n "${target_tag_arg}" ]]; then
+			[[ "${target_tag_arg}" != "v"* ]] && target_tag_arg="v${target_tag_arg}"
+			if ! git rev-parse -q --verify "refs/tags/${target_tag_arg}" &>/dev/null; then
+				error "Тег '${target_tag_arg}' не найден в локальном репозитории."
+			fi
+			target_tag="${target_tag_arg}"
+			previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+			echo "   - ℹ️  Используется тег из аргумента: ${target_tag}"
+			echo "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
 		else
-			local latest_tag=$(git describe --tags --abbrev=0)
-			local commits_after_tag=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null || echo "0")
-			if [[ "${commits_after_tag}" -gt 0 ]]; then
-				echo "   - ℹ️  Найдено ${commits_after_tag} коммитов после последнего тега ${latest_tag}"
-				echo "   - ℹ️  Генерируется changelog для нереализованных изменений"
-				previous_tag="${latest_tag}"
+			if ! git describe --tags --abbrev=0 &>/dev/null; then
+				echo "   - ℹ️  Теги не найдены, используются все коммиты от начала репозитория"
+				previous_tag=$(git rev-list --max-parents=0 HEAD | head -n 1)
 				target_tag="HEAD"
-				echo "   - ✅ Диапазон: от ${previous_tag} до HEAD"
 			else
-				echo "   - ℹ️  Коммитов после последнего тега не найдено, используется последний тег: ${latest_tag}"
-				target_tag="${latest_tag}"
-				previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-				echo "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
+				local latest_tag=$(git describe --tags --abbrev=0)
+				local commits_after_tag=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null || echo "0")
+				if [[ "${commits_after_tag}" -gt 0 ]]; then
+					echo "   - ℹ️  Найдено ${commits_after_tag} коммитов после последнего тега ${latest_tag}"
+					echo "   - ℹ️  Генерируется changelog для нереализованных изменений"
+					previous_tag="${latest_tag}"
+					target_tag="HEAD"
+					echo "   - ✅ Диапазон: от ${previous_tag} до HEAD"
+				else
+					echo "   - ℹ️  Коммитов после последнего тега не найдено, используется последний тег: ${latest_tag}"
+					target_tag="${latest_tag}"
+					previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+					echo "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
+				fi
 			fi
 		fi
-	fi
 
-	echo "🔍 Получение коммитов..."
-	local all_commits=""
-	echo "   - Получение локальных коммитов..."
-	all_commits=$(get_local_commits "${previous_tag}" "${target_tag}")
-	if [[ "${use_api}" == true && -n "${token}" ]]; then
-		echo "   - Попытка дополнения данными из GitHub API..."
-		local github_commits=""
-		local api_url="https://api.github.com/repos/${repo_path}"
-		if github_commits=$(get_api_commits "${api_url}" "${token}" "${previous_tag}" "${target_tag}"); then
-			echo "   - ✅ Данные из GitHub API получены, объединяем с локальными..."
-			all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
-		else
-			echo "   - ⚠️  Не удалось получить данные из API, используются только локальные коммиты"
+		echo "🔍 Получение коммитов..."
+		echo "   - Получение локальных коммитов..."
+		all_commits=$(get_local_commits_by_tag "${previous_tag}" "${target_tag}")
+		if [[ "${use_api}" == true && -n "${token}" ]]; then
+			echo "   - Попытка дополнения данными из GitHub API..."
+			local github_commits=""
+			local api_url="https://api.github.com/repos/${repo_path}"
+			if github_commits=$(get_api_commits "${api_url}" "${token}" "${previous_tag}" "${target_tag}"); then
+				echo "   - ✅ Данные из GitHub API получены, объединяем с локальными..."
+				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
+			else
+				echo "   - ⚠️  Не удалось получить данные из API, используются только локальные коммиты"
+			fi
 		fi
 	fi
 	echo "   - ✅ Коммиты обработаны."
@@ -243,7 +270,7 @@ function main() {
 	section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="### ⚙️ CI/CD\n${section_content}\n\n"
 	section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)" "${commits}") && changelog_content+="### 🔧 Прочее\n${section_content}\n\n"
 
-	if [[ -n "${git_host}" && -n "${repo_path}" ]]; then
+	if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
 		local changelog_link
 		if [[ "${previous_tag}" == v* ]]; then
 			changelog_link="https://${git_host}/${repo_path}/compare/${previous_tag}...${target_tag}"
