@@ -9,6 +9,7 @@ function usage() {
 	echo "  -u <until_date>     Конечная дата для выборки коммитов."
 	echo "  -r                  Вывести коммиты в виде простого списка (без группировки)."
 	echo "  -h                  Показать эту справку."
+	exit 0
 }
 
 function error() {
@@ -238,7 +239,7 @@ function main() {
 			s ) since_date=${OPTARG};;
 			u ) until_date=${OPTARG};;
 			r ) raw_list_mode=true;;
-			h ) usage; exit 0;;
+			h ) usage;;
 			\? ) error "Неверный флаг: -${OPTARG}. Используйте -h для справки.";;
 			: ) error "Флаг -${OPTARG} требует аргумент.";;
 		esac
