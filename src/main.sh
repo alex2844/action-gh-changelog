@@ -16,9 +16,16 @@ function error() {
 	exit 1
 }
 
+function trim() {
+	local var="$*"
+	var="${var#"${var%%[![:space:]]*}"}"
+	var="${var%"${var##*[![:space:]]}"}"
+	echo -n "${var}"
+}
+
 function check_deps() {
 	local missing_deps=0
-	for dep in git awk; do
+	for dep in git; do
 		if ! command -v "${dep}" &>/dev/null; then
 			echo "❌ Утилита '${dep}' не найдена, но она необходима для работы скрипта." >&2
 			missing_deps=1
@@ -70,21 +77,8 @@ function deduplicate_and_format_commits() {
 			author_info="(${author})"
 		fi
 
-		formatted_commits+="* ${message} ${author_info}"$'\n'
+		echo "* ${message} ${author_info}"
 	done <<< "${all_commits}"
-
-	echo "${formatted_commits}"
-}
-
-function get_commits() {
-	local include_pattern="$1"
-	local exclude_pattern="${2:-}"
-	local all_commits="$3"
-	local commits=$(echo "${all_commits}" | grep -E "${include_pattern}" || true)
-	if [[ -n "${exclude_pattern}" ]]; then
-		commits=$(echo "${commits}" | grep -E -v "${exclude_pattern}" || true)
-	fi
-	[[ -n "${commits}" ]] && echo "${commits}"
 }
 
 function get_api_commits() {
@@ -112,13 +106,24 @@ function get_api_commits() {
 	echo "${response_body}" | jq -r '.commits[] | .sha[0:7] + "|" + (.commit.message | split("\n")[0]) + "|" + .author.login'
 }
 
+function get_commits() {
+	local include_pattern="$1"
+	local exclude_pattern="${2:-}"
+	local all_commits="$3"
+	local commits=$(echo "${all_commits}" | grep -E "${include_pattern}" || true)
+	if [[ -n "${exclude_pattern}" ]]; then
+		commits=$(echo "${commits}" | grep -E -v "${exclude_pattern}" || true)
+	fi
+	[[ -n "${commits}" ]] && echo "${commits}"
+}
+
 function get_local_commits_by_tag() {
 	local from_ref="$1"
 	local to_ref="$2"
 	local reverse_mode="$3"
 	local reverse_arg=""
 	[[ "${reverse_mode}" == true ]] && reverse_arg="--reverse"
-	git log --no-merges ${reverse_arg} --pretty=format:"%h|%s|%an" "${from_ref}".."${to_ref}" 2>/dev/null || true
+	git log --no-merges ${reverse_arg} --pretty=format:"%n###GIT_ENTRY_START###%n%h|%an%n%B" "${from_ref}".."${to_ref}" 2>/dev/null | parse_git_log || true
 }
 
 function get_local_commits_by_date() {
@@ -130,7 +135,87 @@ function get_local_commits_by_date() {
 	[[ -n "${since_date}" ]] && date_args+=(--since="${since_date}")
 	[[ -n "${until_date}" ]] && date_args+=(--until="${until_date}")
 	[[ "${reverse_mode}" == true ]] && reverse_arg="--reverse"
-	git log --no-merges ${reverse_arg} --pretty=format:'%h|%s|%an' "${date_args[@]}" 2>/dev/null || true
+	git log --no-merges ${reverse_arg} --pretty=format:"%n###GIT_ENTRY_START###%n%h|%an%n%B" "${date_args[@]}" 2>/dev/null | parse_git_log || true
+}
+
+function parse_git_log() {
+	local state="init"
+	local outer_hash=""
+	local outer_author=""
+	local current_hash=""
+	local current_author=""
+	local is_squashed=0
+	local found_subject_for_normal=0
+	local found_inner_msg=0
+	local squash_idx=0
+
+	while IFS= read -r line; do
+		if [[ "${line}" == "###GIT_ENTRY_START###" ]]; then
+			state="header"
+			is_squashed=0
+			found_subject_for_normal=0
+			squash_idx=0
+			continue
+		fi
+		if [[ "${state}" == "header" ]]; then
+			outer_hash="${line%%|*}"
+			outer_author="${line#*|}"
+			current_hash="${outer_hash}"
+			current_author="${outer_author}"
+			state="body"
+			continue
+		fi
+		if [[ "${state}" == "body" ]]; then
+			if [[ "${line}" =~ "Squashed commit of the following:" ]]; then
+				is_squashed=1
+				current_hash="${outer_hash}"
+				current_author="${outer_author}"
+				found_inner_msg=0 
+				continue
+			fi
+			if [[ "${is_squashed}" -eq 1 ]]; then
+				local clean_line
+				clean_line=$(trim "${line}")
+				[[ -z "${clean_line}" ]] && continue
+				if [[ "${clean_line}" =~ ^commit[[:space:]]+([a-f0-9]+) ]]; then
+					current_hash="${BASH_REMATCH[1]}"
+					current_hash="${current_hash:0:7}"
+					current_author="${outer_author}"
+					found_inner_msg=0
+					continue
+				fi
+				if [[ "${clean_line}" =~ ^Author:[[:space:]]*(.*) ]]; then
+					local full_auth="${BASH_REMATCH[1]}"
+					if [[ "${full_auth}" =~ ^([^<]+) ]]; then
+						current_author=$(trim "${BASH_REMATCH[1]}")
+					else
+						current_author="${full_auth}"
+					fi
+					continue
+				fi
+				[[ "${clean_line}" =~ ^Date: ]] && continue
+				[[ "${clean_line}" == "Squashed commit of the following:" ]] && continue
+				if [[ "${found_inner_msg}" -eq 0 ]] && [[ "${line}" =~ ^[[:space:]] ]]; then
+					local final_hash="${current_hash}"
+					if [[ "${final_hash}" == "${outer_hash}" ]]; then
+						squash_idx=$((squash_idx + 1))
+						final_hash="${outer_hash}_${squash_idx}"
+					fi
+					echo "${final_hash}|${clean_line}|${current_author}"
+					found_inner_msg=1
+				fi
+			else
+				if [[ "${found_subject_for_normal}" -eq 0 ]] && [[ -n "${line}" ]]; then
+					local clean_line
+					clean_line=$(trim "${line}")
+					if [[ -n "${clean_line}" ]]; then
+						echo "${outer_hash}|${clean_line}|${outer_author}"
+						found_subject_for_normal=1
+					fi
+				fi
+			fi
+		fi
+	done
 }
 
 function main() {
