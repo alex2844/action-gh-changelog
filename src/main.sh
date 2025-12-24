@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+readonly __source="${BASH_SOURCE:-$0}"
+readonly __filename="$(basename -- "${__source}")"
+readonly __dirname="$(dirname "$(readlink -e "${__source}")")"
+readonly __invoke="${0/#\/*/${__filename}}"
+readonly __version='main'
 
 QUIET_MODE=false
 
 function usage() {
-	echo "Использование: $0 [-t <tag>] [-o <output_file>] [-s <since_date>] [-u <until_date>] [-r] [-q] [-h]"
+	echo "Использование: ${__invoke} [-t <tag>] [-o <output_file>] [-s <since_date>] [-u <until_date>] [-r] [-q] [-h]"
 	echo "  -t <tag>            Тег, для которого генерируется changelog (по умолчанию: последний тег)."
 	echo "  -o <output_file>    Файл для сохранения результата (по умолчанию: вывод на экран)."
 	echo "  -s <since_date>     Начальная дата для выборки коммитов (например, '2025-01-01' или '1 year ago')."
