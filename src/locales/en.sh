@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# English language pack
+
+declare -gA I18N
+
+# Usage (help text)
+I18N["usage_header"]="Usage: %s [options]"
+I18N["usage_opt_t"]="  -t <tag>     Tag to generate the changelog for (default: latest tag)."
+I18N["usage_opt_o"]="  -o <file>    Output file to save the result to (default: stdout)."
+I18N["usage_opt_s"]="  -s <date>    Start date to fetch commits from (e.g., '2025-01-01' or '1 year ago')."
+I18N["usage_opt_u"]="  -u <date>    End date to fetch commits to."
+I18N["usage_opt_r"]="  -r           Output commits as a raw list (without grouping)."
+I18N["usage_opt_q"]="  -q           Quiet mode (suppress log messages)."
+I18N["usage_opt_h"]="  -h           Show this help message."
+
+# Errors
+I18N["error_prefix"]="❌ Error:"
+I18N["error_invalid_flag"]="Invalid flag: -%s. Use -h for help."
+I18N["error_flag_requires_arg"]="Flag -%s requires an argument."
+I18N["error_dep_missing"]="Utility '%s' not found, but it is required for this script to work."
+I18N["error_tag_not_found"]="Tag '%s' not found in the local repository."
+I18N["error_api_returned"]="API returned an error: %s"
+
+# Warnings
+I18N["warn_api_dep_missing"]="   - ⚠️  Utility '%s' not found. Cannot use the GitHub API."
+I18N["warn_remote_url_unrecognized"]="   - ⚠️  Could not parse the remote URL format: %s"
+I18N["warn_remote_origin_missing"]="   - ⚠️  Remote 'origin' not found. Using local commits only."
+I18N["warn_token_missing"]="   - ⚠️  GitHub token not found. API data will not be fetched."
+I18N["warn_api_fetch_failed"]="⚠️  Failed to fetch data from the API. One of the tags might not exist on the remote."
+I18N["warn_api_fetch_failed_fallback"]="   - ⚠️  Failed to fetch data from the API, using local commits only."
+
+# Log messages
+I18N["log_repo_discovery"]="🔍 Discovering repository..."
+I18N["log_repo_found"]="   - ✅ Remote repository found: %s"
+I18N["log_repo_is_github"]="   - ℹ️  GitHub repository detected. Checking API dependencies..."
+I18N["log_api_deps_ok"]="   - ✅ API dependencies found."
+I18N["log_repo_is_other_host"]="   - ℹ️  Repository on %s detected. Using local commits only."
+I18N["log_token_search"]="🔍 Searching for GitHub token..."
+I18N["log_token_found_env"]="   - ✅ Found in GITHUB_TOKEN environment variable."
+I18N["log_token_found_gh"]="   - ✅ Found via GitHub CLI (gh)."
+I18N["log_range_discovery"]="🔍 Determining range..."
+I18N["log_mode_by_date"]="   - ℹ️  Date-based generation mode selected."
+I18N["log_range_from"]="from %s"
+I18N["log_range_from_beginning"]="from the beginning of history"
+I18N["log_range_to"]=" to %s"
+I18N["log_range_defined"]="   - ✅ Range: %s"
+I18N["log_commits_fetching"]="🔍 Fetching commits..."
+I18N["log_commits_fetching_local"]="   - Fetching local commits..."
+I18N["log_tag_from_arg"]="   - ℹ️  Using tag from argument: %s"
+I18N["log_range_from_to"]="from %s to %s"
+I18N["log_no_tags_found"]="   - ℹ️  No tags found, using all commits from the beginning of the repository"
+I18N["log_commits_after_tag"]="   - ℹ️  Found %d commits since the last tag %s"
+I18N["log_generating_for_unreleased"]="   - ℹ️  Generating changelog for unreleased changes"
+I18N["log_no_commits_after_tag"]="   - ℹ️  No new commits since the last tag, using latest tag: %s"
+I18N["log_api_fetching_attempt"]="   - Attempting to supplement data from the GitHub API..."
+I18N["log_api_fetch_ok"]="   - ✅ Data from GitHub API received, merging with local..."
+I18N["log_commits_processed"]="   - ✅ Commits processed."
+I18N["log_no_commits_found"]="⚪️ No commits found to process."
+I18N["log_deduplication_start"]="🔍 Removing duplicates..."
+I18N["log_deduplication_done"]="   - ✅ Duplicates removed."
+I18N["log_changelog_generation_start"]="🔍 Generating changelog..."
+I18N["log_mode_raw_list"]="   - ℹ️  Raw list output mode selected."
+I18N["log_mode_grouped"]="   - ℹ️  Grouped sections mode selected."
+I18N["log_changelog_generation_done"]="   - ✅ Changelog generated."
+I18N["log_saved_to_file"]="   - ✅ Changelog saved to file: %s"
+
+# Changelog sections
+I18N["section_features"]="### 🚀 Features"
+I18N["section_fixes"]="### 🐛 Bug Fixes"
+I18N["section_improvements"]="### ✨ Improvements"
+I18N["section_reverts"]="### ⏪ Reverted Changes"
+I18N["section_docs"]="### 📖 Documentation"
+I18N["section_ci"]="### ⚙️ Continuous Integration"
+I18N["section_misc"]="### 🔧 Miscellaneous"
+I18N["footer_full_changelog"]="**Full Changelog**"

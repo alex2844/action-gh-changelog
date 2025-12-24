@@ -6,17 +6,19 @@ readonly __dirname="$(dirname "$(readlink -e "${__source}")")"
 readonly __invoke="${0/#\/*/${__filename}}"
 readonly __version='main'
 
+source "${__dirname}/i18n.sh"
+
 QUIET_MODE=false
 
 function usage() {
-	echo "Использование: ${__invoke} [-t <tag>] [-o <output_file>] [-s <since_date>] [-u <until_date>] [-r] [-q] [-h]"
-	echo "  -t <tag>            Тег, для которого генерируется changelog (по умолчанию: последний тег)."
-	echo "  -o <output_file>    Файл для сохранения результата (по умолчанию: вывод на экран)."
-	echo "  -s <since_date>     Начальная дата для выборки коммитов (например, '2025-01-01' или '1 year ago')."
-	echo "  -u <until_date>     Конечная дата для выборки коммитов."
-	echo "  -r                  Вывести коммиты в виде простого списка (без группировки)."
-	echo "  -q                  Тихий режим (не выводить служебные сообщения)."
-	echo "  -h                  Показать эту справку."
+	log "$(t "usage_header" "${__invoke}")"
+	log "$(t "usage_opt_t")"
+	log "$(t "usage_opt_o")"
+	log "$(t "usage_opt_s")"
+	log "$(t "usage_opt_u")"
+	log "$(t "usage_opt_r")"
+	log "$(t "usage_opt_q")"
+	log "$(t "usage_opt_h")"
 	exit 0
 }
 
@@ -27,7 +29,7 @@ function log() {
 }
 
 function error() {
-	echo "❌ Ошибка: $1" >&2
+	echo "$(t "error_prefix") $@" >&2
 	exit 1
 }
 
@@ -39,21 +41,18 @@ function trim() {
 }
 
 function check_deps() {
-	local missing_deps=0
 	for dep in git; do
 		if ! command -v "${dep}" &>/dev/null; then
-			log "❌ Утилита '${dep}' не найдена, но она необходима для работы скрипта."
-			missing_deps=1
+			error "$(t "error_dep_missing" "${dep}")"
 		fi
 	done
-	return ${missing_deps}
 }
 
 function check_api_deps() {
 	local missing_deps=0
 	for dep in jq curl; do
 		if ! command -v "${dep}" &>/dev/null; then
-			log "   - ⚠️  Утилита '${dep}' не найдена. Невозможно использовать GitHub API."
+			log "$(t "warn_api_dep_missing" "${dep}")"
 			missing_deps=1
 		fi
 	done
@@ -107,13 +106,13 @@ function get_api_commits() {
 		"${api_url}/compare/${from_ref}...${to_ref}"
 	)
 
-	if echo "${response_body}" | jq -e '.message' > /dev/null; then
+	if echo "${response_body}" | jq -e '.message' >/dev/null; then
 		local error_msg=$(echo "${response_body}" | jq -r '.message')
 		if [[ "${error_msg}" == "Not Found" ]]; then
-			log "⚠️  Предупреждение: Не удалось получить данные через API. Возможно, один из тегов не существует в удаленном репозитории."
+			log "$(t "warn_api_fetch_failed")"
 			return 1
 		else
-			error "API вернул ошибку: ${error_msg}"
+			error "$(t "error_api_returned" "${error_msg}")"
 		fi
 	fi
 
@@ -184,7 +183,7 @@ function parse_git_log() {
 				is_squashed=1
 				current_hash="${outer_hash}"
 				current_author="${outer_author}"
-				found_inner_msg=0 
+				found_inner_msg=0
 				continue
 			fi
 			if [[ "${is_squashed}" -eq 1 ]]; then
@@ -239,18 +238,19 @@ function main() {
 	local since_date=""
 	local until_date=""
 	local raw_list_mode=false
+	load_locate "${LANG%_*}"
 
 	while getopts ":o:t:s:u:rqh" opt; do
 		case ${opt} in
-			o ) output_file=${OPTARG};;
-			t ) target_tag_arg=${OPTARG};;
-			s ) since_date=${OPTARG};;
-			u ) until_date=${OPTARG};;
-			r ) raw_list_mode=true;;
-			q ) QUIET_MODE=true;;
-			h ) usage;;
-			\? ) error "Неверный флаг: -${OPTARG}. Используйте -h для справки.";;
-			: ) error "Флаг -${OPTARG} требует аргумент.";;
+			o) output_file=${OPTARG};;
+			t) target_tag_arg=${OPTARG};;
+			s) since_date=${OPTARG};;
+			u) until_date=${OPTARG};;
+			r) raw_list_mode=true;;
+			q) QUIET_MODE=true;;
+			h) usage;;
+			\?) error "$(t "error_invalid_flag" "${OPTARG}")";;
+			:) error "$(t "error_flag_requires_arg" "${OPTARG}")";;
 		esac
 	done
 
@@ -260,54 +260,59 @@ function main() {
 	local git_host=""
 	local repo_path=""
 	if [[ -z "${since_date}" ]] && [[ -z "${until_date}" ]]; then
-		log "🔍 Определение репозитория..."
+		log "$(t "log_repo_discovery")"
 		local remote_url=$(git remote get-url origin 2>/dev/null || true)
 		if [[ -n "${remote_url}" ]]; then
 			if [[ "${remote_url}" =~ https://([^/]+)/(.+) || "${remote_url}" =~ git@([^:]+):(.+) ]]; then
 				git_host="${BASH_REMATCH[1]}"
 				repo_path="${BASH_REMATCH[2]}"
 				repo_path=${repo_path%.git}
-				log "   - ✅ Удаленный репозиторий найден: ${git_host}/${repo_path}"
+				log "$(t "log_repo_found" "${git_host}/${repo_path}")"
 				if [[ "${git_host}" == "github.com" ]]; then
-					log "   - ℹ️  Обнаружен репозиторий GitHub. Проверка API-зависимостей..."
+					log "$(t "log_repo_is_github")"
 					if check_api_deps; then
 						use_api=true
-						log "   - ✅ API-зависимости найдены."
+						log "$(t "log_api_deps_ok")"
 					fi
 				else
-					log "   - ℹ️  Обнаружен репозиторий на ${git_host}. Используются только локальные коммиты."
+					log "$(t "log_repo_is_other_host" "${git_host}")"
 				fi
 			else
-				log "   - ⚠️  Не удалось распознать формат удаленного URL: ${remote_url}"
+				log "$(t "warn_remote_url_unrecognized" "${remote_url}")"
 			fi
 		else
-			log "   - ⚠️  Удаленный репозиторий (origin) не найден. Используются только локальные коммиты."
+			log "$(t "warn_remote_origin_missing")"
 		fi
 	fi
 
 	local token=""
 	if [[ "${use_api}" == true ]]; then
-		log "🔍 Поиск токена GitHub..."
+		log "$(t "log_token_search")"
 		if [[ -n "${GITHUB_TOKEN:-}" ]]; then
 			token="${GITHUB_TOKEN}"
-			log "   - ✅ Найден в переменной окружения GITHUB_TOKEN."
+			log "$(t "log_token_found_env")"
 		elif command -v gh &>/dev/null && gh auth status &>/dev/null; then
 			token=$(gh auth token)
-			log "   - ✅ Найден через GitHub CLI (gh)."
+			log "$(t "log_token_found_gh")"
 		else
-			log "   - ⚠️  Токен GitHub не найден. Данные из API не будут загружены."
+			log "$(t "warn_token_missing")"
 		fi
 	fi
 
-	log "🔍 Определение диапазона..."
+	log "$(t "log_range_discovery")"
 	local all_commits=""
 	if [[ -n "${since_date}" ]] || [[ -n "${until_date}" ]]; then
-		log "   - ℹ️  Выбран режим генерации по датам."
-		local date_range_info="с ${since_date:-начала истории}"
-		[[ -n "${until_date}" ]] && date_range_info+=" по ${until_date}"
-		log "   - ✅ Диапазон: ${date_range_info}"
-		log "🔍 Получение коммитов..."
-		log "   - Получение локальных коммитов..."
+		log "$(t "log_mode_by_date")"
+		local date_range_info
+		if [[ -n "${since_date}" ]]; then
+			date_range_info=$(t "log_range_from" "${since_date}")
+		else
+			date_range_info=$(t "log_range_from_beginning")
+		fi
+		[[ -n "${until_date}" ]] && date_range_info+="$(t "log_range_to" "${until_date}")"
+		log "$(t "log_range_defined" "${date_range_info}")"
+		log "$(t "log_commits_fetching")"
+		log "$(t "log_commits_fetching_local")"
 		all_commits=$(get_local_commits_by_date "${since_date}" "${until_date}" "${raw_list_mode}")
 	else
 		local target_tag
@@ -315,76 +320,76 @@ function main() {
 		if [[ -n "${target_tag_arg}" ]]; then
 			[[ "${target_tag_arg}" != "v"* ]] && target_tag_arg="v${target_tag_arg}"
 			if ! git rev-parse -q --verify "refs/tags/${target_tag_arg}" &>/dev/null; then
-				error "Тег '${target_tag_arg}' не найден в локальном репозитории."
+				error "$(t "error_tag_not_found" "${target_tag_arg}")"
 			fi
 			target_tag="${target_tag_arg}"
 			previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-			log "   - ℹ️  Используется тег из аргумента: ${target_tag}"
-			log "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
+			log "$(t "log_tag_from_arg" "${target_tag}")"
+			log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "${target_tag}")")"
 		else
 			if ! git describe --tags --abbrev=0 &>/dev/null; then
-				log "   - ℹ️  Теги не найдены, используются все коммиты от начала репозитория"
+				log "$(t "log_no_tags_found")"
 				previous_tag=$(git rev-list --max-parents=0 HEAD | head -n 1)
 				target_tag="HEAD"
 			else
 				local latest_tag=$(git describe --tags --abbrev=0)
 				local commits_after_tag=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null || echo "0")
 				if [[ "${commits_after_tag}" -gt 0 ]]; then
-					log "   - ℹ️  Найдено ${commits_after_tag} коммитов после последнего тега ${latest_tag}"
-					log "   - ℹ️  Генерируется changelog для нереализованных изменений"
+					log "$(t "log_commits_after_tag" "${commits_after_tag}" "${latest_tag}")"
+					log "$(t "log_generating_for_unreleased")"
 					previous_tag="${latest_tag}"
 					target_tag="HEAD"
-					log "   - ✅ Диапазон: от ${previous_tag} до HEAD"
+					log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "HEAD")")"
 				else
-					log "   - ℹ️  Коммитов после последнего тега не найдено, используется последний тег: ${latest_tag}"
+					log "$(t "log_no_commits_after_tag" "${latest_tag}")"
 					target_tag="${latest_tag}"
 					previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-					log "   - ✅ Диапазон: от ${previous_tag} до ${target_tag}"
+					log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "${target_tag}")")"
 				fi
 			fi
 		fi
 
-		log "🔍 Получение коммитов..."
-		log "   - Получение локальных коммитов..."
+		log "$(t "log_commits_fetching")"
+		log "$(t "log_commits_fetching_local")"
 		all_commits=$(get_local_commits_by_tag "${previous_tag}" "${target_tag}" "${raw_list_mode}")
 		if [[ "${use_api}" == true && -n "${token}" ]]; then
-			log "   - Попытка дополнения данными из GitHub API..."
+			log "$(t "log_api_fetching_attempt")"
 			local github_commits=""
 			local api_url="https://api.github.com/repos/${repo_path}"
 			if github_commits=$(get_api_commits "${api_url}" "${token}" "${previous_tag}" "${target_tag}"); then
-				log "   - ✅ Данные из GitHub API получены, объединяем с локальными..."
+				log "$(t "log_api_fetch_ok")"
 				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
 			else
-				log "   - ⚠️  Не удалось получить данные из API, используются только локальные коммиты"
+				log "$(t "warn_api_fetch_failed_fallback")"
 			fi
 		fi
 	fi
-	log "   - ✅ Коммиты обработаны."
+	log "$(t "log_commits_processed")"
 
 	if [[ -z "${all_commits}" ]]; then
-		log "⚪️ Не найдено коммитов для обработки."
+		log "$(t "log_no_commits_found")"
 		exit 0
 	fi
 
-	log "🔍 Удаление дубликатов..."
+	log "$(t "log_deduplication_start")"
 	local commits=$(deduplicate_and_format_commits "${all_commits}" "${git_host}")
-	log "   - ✅ Дубликаты удалены."
+	log "$(t "log_deduplication_done")"
 
-	log "🔍 Генерация списка изменений..."
+	log "$(t "log_changelog_generation_start")"
 	local changelog_content=""
 	if [[ "${raw_list_mode}" == true ]]; then
-		log "   - ℹ️  Выбран режим вывода в виде простого списка."
+		log "$(t "log_mode_raw_list")"
 		changelog_content="${commits}"
 	else
-		log "   - ℹ️  Выбран режим группировки по разделам."
+		log "$(t "log_mode_grouped")"
 		local section_content
-		section_content=$(get_commits "^\* feat" "" "${commits}") && changelog_content+="### 🚀 Новые возможности\n${section_content}\n\n"
-		section_content=$(get_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="### 🐛 Исправления\n${section_content}\n\n"
-		section_content=$(get_commits "^\* refactor|perf" "" "${commits}") && changelog_content+="### ✨ Улучшения и оптимизация\n${section_content}\n\n"
-		section_content=$(get_commits "^\* revert" "" "${commits}" | sed -E 's/^\* revert:[[:space:]]*/\* /i') && changelog_content+="### ↩️  Отмененные изменения\n${section_content}\n\n"
-		section_content=$(get_commits "^\* docs" "" "${commits}") && changelog_content+="### 📖 Документация\n${section_content}\n\n"
-		section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="### ⚙️ CI/CD\n${section_content}\n\n"
-		section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)" "${commits}") && changelog_content+="### 🔧 Прочее\n${section_content}\n\n"
+		section_content=$(get_commits "^\* feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* refactor|perf" "" "${commits}") && changelog_content+="$(t "section_improvements")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* revert" "" "${commits}" | sed -E 's/^\* revert:[[:space:]]*/\* /i') && changelog_content+="$(t "section_reverts")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* docs" "" "${commits}") && changelog_content+="$(t "section_docs")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
+		section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
 
 		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
 			local changelog_link
@@ -393,16 +398,16 @@ function main() {
 			else
 				changelog_link="https://${git_host}/${repo_path}/commits/${target_tag}"
 			fi
-			changelog_content+="**Full Changelog**: ${changelog_link}"
+			changelog_content+="$(t "footer_full_changelog"): ${changelog_link}"
 		else
 			changelog_content=$(echo -e "${changelog_content}" | sed 's/\n\n$//')
 		fi
 	fi
-	log "   - ✅ Список изменений сгенерирован."
+	log "$(t "log_changelog_generation_done")"
 
 	if [[ -n "${output_file}" ]]; then
 		echo -e "${changelog_content}" > "${output_file}"
-		log "   - ✅ Список изменений сохранен в файл: ${output_file}"
+		log "$(t "log_saved_to_file" "${output_file}")"
 	else
 		[[ "${QUIET_MODE}" == false ]] && changelog_content="\n${changelog_content}"
 		echo -e "${changelog_content}"
