@@ -126,12 +126,6 @@ function get_commits() {
 	[[ -n "${commits}" ]] && echo "${commits}"
 }
 
-function get_revert_commits() {
-	local all_commits="$1"
-	local reverts=$(echo "${all_commits}" | grep "^\* Revert" | sed -E 's/^\* Revert "(.+)"/\* \1/' || true)
-	[[ -n "${reverts}" ]] && echo "${reverts}"
-}
-
 function get_local_commits_by_tag() {
 	local from_ref="$1"
 	local to_ref="$2"
@@ -189,8 +183,7 @@ function parse_git_log() {
 				continue
 			fi
 			if [[ "${is_squashed}" -eq 1 ]]; then
-				local clean_line
-				clean_line=$(trim "${line}")
+				local clean_line=$(trim "${line}")
 				[[ -z "${clean_line}" ]] && continue
 				if [[ "${clean_line}" =~ ^commit[[:space:]]+([a-f0-9]+) ]]; then
 					current_hash="${BASH_REMATCH[1]}"
@@ -221,9 +214,11 @@ function parse_git_log() {
 				fi
 			else
 				if [[ "${found_subject_for_normal}" -eq 0 ]] && [[ -n "${line}" ]]; then
-					local clean_line
-					clean_line=$(trim "${line}")
+					local clean_line=$(trim "${line}")
 					if [[ -n "${clean_line}" ]]; then
+						if [[ "${clean_line}" =~ ^Revert[[:space:]]+\"(.+)\" ]]; then
+							clean_line="revert: ${BASH_REMATCH[1]}"
+						fi
 						echo "${outer_hash}|${clean_line}|${outer_author}"
 						found_subject_for_normal=1
 					fi
@@ -381,7 +376,7 @@ function main() {
 		section_content=$(get_commits "^\* feat" "" "${commits}") && changelog_content+="### 🚀 Новые возможности\n${section_content}\n\n"
 		section_content=$(get_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="### 🐛 Исправления\n${section_content}\n\n"
 		section_content=$(get_commits "^\* refactor|perf" "" "${commits}") && changelog_content+="### ✨ Улучшения и оптимизация\n${section_content}\n\n"
-		section_content=$(get_revert_commits "${commits}") && changelog_content+="### ↩️  Отмененные изменения\n${section_content}\n\n"
+		section_content=$(get_commits "^\* revert" "" "${commits}" | sed -E 's/^\* revert:[[:space:]]*/\* /i') && changelog_content+="### ↩️  Отмененные изменения\n${section_content}\n\n"
 		section_content=$(get_commits "^\* docs" "" "${commits}") && changelog_content+="### 📖 Документация\n${section_content}\n\n"
 		section_content=$(get_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="### ⚙️ CI/CD\n${section_content}\n\n"
 		section_content=$(get_commits "^\* chore" "chore\(ci\)|chore\(release\)" "${commits}") && changelog_content+="### 🔧 Прочее\n${section_content}\n\n"
