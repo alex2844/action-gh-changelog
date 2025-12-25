@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+readonly GIT_LOG_DELIMITER="###GIT_ENTRY_START###"
+
 # Получает и парсит коммиты из локального репозитория в заданном диапазоне тегов.
 # @param $1 from_ref - Начальный тег/коммит.
 # @param $2 to_ref - Конечный тег/коммит (по умолчанию HEAD).
@@ -11,6 +13,7 @@ function get_local_commits_by_tag() {
 	local reverse_arg=""
 	"${reverse_mode}" && reverse_arg="--reverse"
 	git log --no-merges ${reverse_arg} --pretty=format:"%n###GIT_ENTRY_START###%n%H|%an%n%B" "${from_ref}".."${to_ref}" 2>/dev/null | parse_git_log || true
+	git log --no-merges ${reverse_arg} --pretty=format:"%n${GIT_LOG_DELIMITER}%n%H|%an%n%B" "${from_ref}".."${to_ref}" 2>/dev/null | parse_git_log || true
 }
 
 # Получает и парсит коммиты из локального репозитория за указанный период.
@@ -26,7 +29,7 @@ function get_local_commits_by_date() {
 	[[ -n "${since_date}" ]] && date_args+=(--since="${since_date}")
 	[[ -n "${until_date}" ]] && date_args+=(--until="${until_date}")
 	"${reverse_mode}" && reverse_arg="--reverse"
-	git log --no-merges ${reverse_arg} --pretty=format:"%n###GIT_ENTRY_START###%n%H|%an%n%B" "${date_args[@]}" 2>/dev/null | parse_git_log || true
+	git log --no-merges ${reverse_arg} --pretty=format:"%n${GIT_LOG_DELIMITER}%n%H|%an%n%B" "${date_args[@]}" 2>/dev/null | parse_git_log || true
 }
 
 # Низкоуровневый парсер вывода `git log`.
@@ -44,7 +47,7 @@ function parse_git_log() {
 	local squash_idx=0
 
 	while IFS= read -r line; do
-		if [[ "${line}" == "###GIT_ENTRY_START###" ]]; then
+		if [[ "${line}" == "${GIT_LOG_DELIMITER}" ]]; then
 			state="header"
 			is_squashed=0
 			found_subject_for_normal=0
