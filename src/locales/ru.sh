@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # Russian language pack
 
-declare -gA I18N
-
 # Usage (help text)
 I18N["usage_header"]="Использование: %s [опции]"
 I18N["usage_opt_t"]="  -t <тег>     Тег, для которого генерируется changelog (по умолчанию: последний тег)."

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # English language pack
 
-declare -gA I18N
-
 # Usage (help text)
 I18N["usage_header"]="Usage: %s [options]"
 I18N["usage_opt_t"]="  -t <tag>     Tag to generate the changelog for (default: latest tag)."
