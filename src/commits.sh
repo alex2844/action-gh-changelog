@@ -117,7 +117,7 @@ function process_commits() {
 	fi
 
 	log "$(t "log_deduplication_start")"
-	local formatted_commits=$(deduplicate_and_format_commits "${all_commits}" "${git_host}")
+	local formatted_commits=$(deduplicate_and_format_commits "${all_commits}")
 	log "$(t "log_deduplication_done")"
 
 	echo "${formatted_commits}"
@@ -126,10 +126,8 @@ function process_commits() {
 # Форматирует "сырой" список коммитов в Markdown-список.
 # Дедуплицирует коммиты и добавляет ссылки на авторов GitHub.
 # @param $1 all_commits - Многострочная переменная с коммитами в формате "хеш|сообщение|автор".
-# @param $2 git_host - Имя хоста Git (например, "github.com").
 function deduplicate_and_format_commits() {
 	local all_commits="$1"
-	local git_host="$2"
 	declare -A seen_hashes
 	declare -A seen_messages
 	declare -A author_links
