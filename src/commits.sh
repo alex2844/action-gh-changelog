@@ -108,16 +108,18 @@ function fetch_commits_data() {
 # Высокоуровневая "пайплайн" функция.
 # Выполняет получение, дедупликацию и базовое форматирование коммитов.
 # @param $1 raw_list_mode - `true` для вывода в хронологическом порядке.
+# @param $2 show_links - `true` если нужно генерировать ссылки на коммиты
 # @return Отформатированный и дедуплицированный список коммитов.
 function process_commits() {
 	local raw_list_mode="$1"
+	local show_links="${2:-false}"
 	local all_commits=$(fetch_commits_data "${raw_list_mode}")
 	if [[ -z "${all_commits}" ]]; then
 		return
 	fi
 
 	log "$(t "log_deduplication_start")"
-	local formatted_commits=$(deduplicate_and_format_commits "${all_commits}")
+	local formatted_commits=$(deduplicate_and_format_commits "${all_commits}" "${show_links}")
 	log "$(t "log_deduplication_done")"
 
 	echo "${formatted_commits}"
@@ -125,9 +127,11 @@ function process_commits() {
 
 # Форматирует "сырой" список коммитов в Markdown-список.
 # Дедуплицирует коммиты и добавляет ссылки на авторов GitHub.
-# @param $1 all_commits - Многострочная переменная с коммитами в формате "хеш|сообщение|автор".
+# @param $1 all_commits - Многострочная переменная с коммитами
+# @param $2 show_links - `true` если нужно генерировать ссылки на коммиты
 function deduplicate_and_format_commits() {
 	local all_commits="$1"
+	local show_links="${2:-false}"
 	declare -A seen_hashes
 	declare -A seen_messages
 	declare -A author_links
@@ -141,7 +145,7 @@ function deduplicate_and_format_commits() {
 		done <<<"${unpushed_list}"
 	fi
 
-	if [[ -n "${git_host}" ]]; then
+	if "${show_links}" && [[ -n "${git_host}" ]]; then
 		while IFS='|' read -r unique_hash display_hash message author; do
 			[[ -z "${unique_hash}" ]] && continue
 			if [[ "${author}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -159,7 +163,7 @@ function deduplicate_and_format_commits() {
 		seen_messages["${message}"]=1
 
 		local commit_hash_display="${display_hash}"
-		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
+		if "${show_links}" && [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
 			local commit_url="https://${git_host}/${repo_path}/commit/${display_hash}"
 			commit_hash_display="[${display_hash}](${commit_url})"
 		fi

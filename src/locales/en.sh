@@ -7,6 +7,7 @@ I18N["usage_opt_t"]="  -t <tag>     Tag to generate the changelog for (default: 
 I18N["usage_opt_o"]="  -o <file>    Output file to save the result to (default: stdout)."
 I18N["usage_opt_s"]="  -s <date>    Start date to fetch commits from (e.g., '2025-01-01' or '1 year ago')."
 I18N["usage_opt_u"]="  -u <date>    End date to fetch commits to."
+I18N["usage_opt_l"]="  -l           Add links to commit hashes (default: text only)."
 I18N["usage_opt_r"]="  -r           Output commits as a raw list (without grouping)."
 I18N["usage_opt_q"]="  -q           Quiet mode (suppress log messages)."
 I18N["usage_opt_h"]="  -h           Show this help message."

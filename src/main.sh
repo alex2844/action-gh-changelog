@@ -18,6 +18,7 @@ function usage() {
 	log "$(t "usage_opt_o")"
 	log "$(t "usage_opt_s")"
 	log "$(t "usage_opt_u")"
+	log "$(t "usage_opt_l")"
 	log "$(t "usage_opt_r")"
 	log "$(t "usage_opt_q")"
 	log "$(t "usage_opt_h")"
@@ -41,15 +42,17 @@ function main() {
 	local target_tag=""
 	local since_date=""
 	local until_date=""
+	local show_links=false
 	local raw_list_mode=false
 	load_locate "${LANG%_*}"
 
-	while getopts ":o:t:s:u:rqh" opt; do
+	while getopts ":o:t:s:u:rlqh" opt; do
 		case ${opt} in
 			o) output_file=${OPTARG};;
 			t) target_tag=${OPTARG};;
 			s) since_date=${OPTARG};;
 			u) until_date=${OPTARG};;
+			l) show_links=true;;
 			r) raw_list_mode=true;;
 			q) quiet_mode=true;;
 			h) usage;;
@@ -63,7 +66,7 @@ function main() {
 	detect_remote_provider
 	determine_range "${since_date}" "${until_date}" "${target_tag}"
 
-	local processed_commits=$(process_commits "${raw_list_mode}")
+	local processed_commits=$(process_commits "${raw_list_mode}" "${show_links}")
 	if [[ -z "${processed_commits}" ]]; then
 		log "$(t "log_no_commits_found")"
 		exit 0
