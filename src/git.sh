@@ -32,6 +32,12 @@ function get_local_commits_by_date() {
 	git log --no-merges ${reverse_arg} --pretty=format:"%n${GIT_LOG_DELIMITER}%n%H|%an%n%B" "${date_args[@]}" 2>/dev/null | parse_git_log || true
 }
 
+# Возвращает список коротких хешей (7 символов) коммитов,
+# которые есть локально, но отсутствуют на удаленных ветках.
+function get_unpushed_commits() {
+	git log --no-merges --format="%h" HEAD --branches --not --remotes 2>/dev/null || true
+}
+
 # Низкоуровневый парсер вывода `git log`.
 # "Распаковывает" squashed-коммиты и преобразует Revert-коммиты.
 # Ожидает на вход специфичный формат с разделителем ###GIT_ENTRY_START###.
@@ -39,7 +45,6 @@ function parse_git_log() {
 	local state="init"
 	local outer_hash=""
 	local outer_author=""
-	local current_hash=""
 	local current_author=""
 	local is_squashed=0
 	local found_subject_for_normal=0
@@ -58,7 +63,6 @@ function parse_git_log() {
 			outer_hash="${line%%|*}"
 			outer_hash="${outer_hash:0:7}"
 			outer_author="${line#*|}"
-			current_hash="${outer_hash}"
 			current_author="${outer_author}"
 			state="body"
 			continue
@@ -66,7 +70,6 @@ function parse_git_log() {
 		if [[ "${state}" == "body" ]]; then
 			if [[ "${line}" =~ "Squashed commit of the following:" ]]; then
 				is_squashed=1
-				current_hash="${outer_hash}"
 				current_author="${outer_author}"
 				found_inner_msg=0
 				continue
@@ -75,9 +78,6 @@ function parse_git_log() {
 				local clean_line=$(trim "${line}")
 				[[ -z "${clean_line}" ]] && continue
 				if [[ "${clean_line}" =~ ^commit[[:space:]]+([a-f0-9]+) ]]; then
-					current_hash="${BASH_REMATCH[1]}"
-					current_hash="${current_hash:0:7}"
-					current_author="${outer_author}"
 					found_inner_msg=0
 					continue
 				fi
@@ -93,12 +93,9 @@ function parse_git_log() {
 				[[ "${clean_line}" =~ ^Date: ]] && continue
 				[[ "${clean_line}" == "Squashed commit of the following:" ]] && continue
 				if [[ "${found_inner_msg}" -eq 0 ]] && [[ "${line}" =~ ^[[:space:]] ]]; then
-					local final_hash="${current_hash}"
-					if [[ "${final_hash}" == "${outer_hash}" ]]; then
-						squash_idx=$((squash_idx + 1))
-						final_hash="${outer_hash}_${squash_idx}"
-					fi
-					echo "${final_hash}|${clean_line}|${current_author}"
+					squash_idx=$((squash_idx + 1))
+					local unique_hash="${outer_hash}_${squash_idx}"
+					echo "${unique_hash}|${outer_hash}|${clean_line}|${current_author}"
 					found_inner_msg=1
 				fi
 			else
@@ -108,7 +105,7 @@ function parse_git_log() {
 						if [[ "${clean_line}" =~ ^Revert[[:space:]]+\"(.+)\" ]]; then
 							clean_line="revert: ${BASH_REMATCH[1]}"
 						fi
-						echo "${outer_hash}|${clean_line}|${outer_author}"
+						echo "${outer_hash}|${outer_hash}|${clean_line}|${outer_author}"
 						found_subject_for_normal=1
 					fi
 				fi

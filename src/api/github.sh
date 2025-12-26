@@ -22,5 +22,5 @@ function get_api_commits() {
 		fi
 	fi
 
-	echo "${response_body}" | jq -r '.commits[] | .sha[0:7] + "|" + (.commit.message | split("\n")[0]) + "|" + (.author.login // .commit.author.name)'
+	echo "${response_body}" | jq -r '.commits[] | .sha[0:7] as $h | "\($h)|\($h)|" + (.commit.message | split("\n")[0]) + "|" + (.author.login // .commit.author.name)'
 }

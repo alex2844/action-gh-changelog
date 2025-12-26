@@ -79,7 +79,7 @@ function determine_range() {
 # @param $1 raw_list_mode - `true` для вывода в хронологическом порядке.
 # @return Многострочная переменная с коммитами в формате "хеш|сообщение|автор".
 function fetch_commits_data() {
-	local raw_list_mode="$1"
+	local raw_list_mode="${1:-false}"
 	local all_commits=""
 
 	log "$(t "log_commits_fetching")"
@@ -131,32 +131,47 @@ function deduplicate_and_format_commits() {
 	declare -A seen_hashes
 	declare -A seen_messages
 	declare -A author_links
+	declare -A unpushed_map
 
-	if [[ "${git_host}" == "github.com" ]]; then
-		while IFS='|' read -r hash message author; do
-			[[ -z "${hash}" ]] && continue
+	if [[ -n "${repo_path}" ]]; then
+		local unpushed_list=$(get_unpushed_commits)
+		while read -r short_hash; do
+			[[ -z "${short_hash}" ]] && continue
+			unpushed_map["${short_hash}"]=1
+		done <<<"${unpushed_list}"
+	fi
+
+	if [[ -n "${git_host}" ]]; then
+		while IFS='|' read -r unique_hash display_hash message author; do
+			[[ -z "${unique_hash}" ]] && continue
 			if [[ "${author}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-				author_links["${hash}"]="([${author}](https://${git_host}/${author}))"
+				author_links["${unique_hash}"]="([${author}](https://${git_host}/${author}))"
 			fi
 		done <<<"${all_commits}"
 	fi
 
-	while IFS='|' read -r hash message author; do
-		[[ -z "${hash}" ]] && continue
-		if [[ -n "${seen_hashes[${hash}]:-}" ]] || [[ -n "${seen_messages[${message}]:-}" ]]; then
+	while IFS='|' read -r unique_hash display_hash message author; do
+		[[ -z "${unique_hash}" ]] && continue
+		if [[ -n "${seen_hashes[${unique_hash}]:-}" ]] || [[ -n "${seen_messages[${message}]:-}" ]]; then
 			continue
 		fi
-		seen_hashes["${hash}"]=1
+		seen_hashes["${unique_hash}"]=1
 		seen_messages["${message}"]=1
 
+		local commit_hash_display="${display_hash}"
+		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
+			local commit_url="https://${git_host}/${repo_path}/commit/${display_hash}"
+			commit_hash_display="[${display_hash}](${commit_url})"
+		fi
+
 		local author_info
-		if [[ -n "${author_links[${hash}]:-}" ]]; then
-			author_info="${author_links[${hash}]}"
+		if [[ -n "${author_links[${unique_hash}]:-}" ]]; then
+			author_info="${author_links[${unique_hash}]}"
 		else
 			author_info="(${author})"
 		fi
 
-		echo "* ${message} ${author_info}"
+		echo "* ${commit_hash_display} ${message} ${author_info}"
 	done <<<"${all_commits}"
 }
 
@@ -192,13 +207,13 @@ function generate_changelog_content() {
 	else
 		log "$(t "log_mode_grouped")"
 		local section_content
-		section_content=$(filter_commits "^\* feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* refactor|perf" "" "${commits}") && changelog_content+="$(t "section_improvements")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* revert" "" "${commits}" | sed -E 's/^\* revert:[[:space:]]*/\* /i') && changelog_content+="$(t "section_reverts")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* docs" "" "${commits}") && changelog_content+="$(t "section_docs")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* ci|fix\(ci\)|chore\(ci\)|chore\(release\)" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ (refactor|perf)" "" "${commits}") && changelog_content+="$(t "section_improvements")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ revert" "" "${commits}" | sed -E 's/^(\* [^ ]+) revert:[[:space:]]*/\1 /i') && changelog_content+="$(t "section_reverts")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ docs" "" "${commits}") && changelog_content+="$(t "section_docs")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ (ci|fix\(ci\)|chore\(ci\)|chore\(release\))" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
+		section_content=$(filter_commits "^\* [^ ]+ chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
 
 		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
 			local changelog_link
