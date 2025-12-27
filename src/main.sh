@@ -18,9 +18,11 @@ function usage() {
 	log "$(t "usage_opt_o")"
 	log "$(t "usage_opt_s")"
 	log "$(t "usage_opt_u")"
-	log "$(t "usage_opt_l")"
 	log "$(t "usage_opt_r")"
+	log "$(t "usage_opt_l")"
+	log "$(t "usage_opt_n")"
 	log "$(t "usage_opt_q")"
+	log "$(t "usage_opt_v")"
 	log "$(t "usage_opt_h")"
 	exit 0
 }
@@ -38,26 +40,32 @@ function check_deps() {
 # Главная функция-оркестратор.
 # @param $@ - Аргументы командной строки, переданные скрипту.
 function main() {
+	local raw_args="$*"
 	local output_file=""
 	local target_tag=""
 	local since_date=""
 	local until_date=""
-	local show_links=false
 	local raw_list_mode=false
+	local show_links=false
+	local show_next_version=false
 	load_locate "${LANG%_*}"
 
-	while getopts ":o:t:s:u:rlqh" opt; do
-		case ${opt} in
+	local flags="output:o tag:t since:s until:u raw:r links:l next-version:n quiet:q help:h version:v"
+	eval "$(normalize_args "${flags}" "$@")"
+	while getopts ":o:t:s:u:lrnqhv" OPT; do
+		case ${OPT} in
 			o) output_file=${OPTARG};;
 			t) target_tag=${OPTARG};;
 			s) since_date=${OPTARG};;
 			u) until_date=${OPTARG};;
-			l) show_links=true;;
 			r) raw_list_mode=true;;
+			l) show_links=true;;
+			n) show_next_version=true;;
 			q) quiet_mode=true;;
 			h) usage;;
-			\?) error "$(t "error_invalid_flag" "${OPTARG}")";;
-			:) error "$(t "error_flag_requires_arg" "${OPTARG}")";;
+			v) print_version;;
+			\?) error "$(t "error_invalid_flag" "$(resolve_flag "${OPTARG}" "${OPTIND}" "${flags}" "${raw_args}" "$@")")";;
+			:) error "$(t "error_flag_requires_arg" "$(resolve_flag "${OPTARG}" "${OPTIND}" "${flags}" "${raw_args}" "$@")")";;
 		esac
 	done
 
