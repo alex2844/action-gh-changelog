@@ -10,6 +10,7 @@ source "${__dirname}/i18n.sh"
 source "${__dirname}/utils.sh"
 source "${__dirname}/commits.sh"
 source "${__dirname}/remote.sh"
+source "${__dirname}/semver.sh"
 
 # Выводит текст справки (usage) и успешно завершает работу скрипта.
 function usage() {
@@ -73,6 +74,13 @@ function main() {
 
 	detect_remote_provider
 	determine_range "${since_date}" "${until_date}" "${target_tag}"
+
+	if "${show_next_version}"; then
+		local raw_commits=$(fetch_commits_data "false")
+		log "$(t "log_calculating_next_version")"
+		calculate_next_version "${previous_tag}" "${raw_commits}"
+		return
+	fi
 
 	local processed_commits=$(process_commits "${raw_list_mode}" "${show_links}")
 	if [[ -z "${processed_commits}" ]]; then
