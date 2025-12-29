@@ -62,7 +62,7 @@ function main() {
 			r) raw_list_mode=true;;
 			l) show_links=true;;
 			n) show_next_version=true;;
-			q) quiet_mode=true;;
+			q) QUIET_MODE=true;;
 			h) usage;;
 			v) print_version;;
 			\?) error "$(t "error_invalid_flag" "$(resolve_flag "${OPTARG}" "${OPTIND}" "${flags}" "${raw_args}" "$@")")";;
@@ -77,8 +77,7 @@ function main() {
 
 	if "${show_next_version}"; then
 		local raw_commits=$(fetch_commits_data "false")
-		log "$(t "log_calculating_next_version")"
-		calculate_next_version "${previous_tag}" "${raw_commits}"
+		calculate_next_version "${PREVIOUS_TAG}" "${raw_commits}"
 		return
 	fi
 
@@ -88,14 +87,12 @@ function main() {
 		exit 0
 	fi
 
-	log "$(t "log_changelog_generation_start")"
 	local changelog_content=$(generate_changelog_content "${processed_commits}" "${raw_list_mode}")
-
 	if [[ -n "${output_file}" ]]; then
 		echo -e "${changelog_content}" > "${output_file}"
-		log "$(t "log_saved_to_file" "${output_file}")"
+		log success "$(t "log_saved_to_file" "${output_file}")"
 	else
-		${quiet_mode} || changelog_content="\n${changelog_content}"
+		${QUIET_MODE} || changelog_content="\n${changelog_content}"
 		echo -e "${changelog_content}"
 	fi
 }

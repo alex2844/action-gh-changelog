@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
-declare -g quiet_mode=false
+declare -g QUIET_MODE=false
+declare -g LOG_INDENT=""
 
 # Выводит текущую версию скрипта и завершает выполнение.
 # Использует глобальную переменную __version.
@@ -10,17 +11,48 @@ function print_version() {
 }
 
 # Выводит сообщение в stderr, если не включен тихий режим.
-# @param ... все аргументы будут выведены как одна строка.
+# Уровни: debug (default), info, warn, error, success
+# @param [level] - (опционально) Уровень лога
+# @param ... message - Сообщение
 function log() {
-	if ! ${quiet_mode}; then
-		echo -e "$@" >&2
+	local level="${1:-debug}"
+	local message="$@"
+	if [[ "${level}" == "groupEnd" ]]; then
+		LOG_INDENT="${LOG_INDENT%   }"
+		return
+	fi
+	if [[ $# -gt 0 ]]; then
+		case "${level}" in
+			error|warn|info|success|debug|group)
+				shift
+				message="$@"
+			;;
+		esac
+	fi
+	local color=""
+	local reset="\033[0m"
+	local icon=""
+	local prefix=""
+	if ! "${QUIET_MODE}"; then
+		prefix="${LOG_INDENT}${LOG_INDENT:+"- "}"
+	fi
+	case "${level}" in
+		group) LOG_INDENT="${LOG_INDENT}   ";;
+		error) color="\033[0;31m"; icon="❌ ";;
+		warn) color="\033[1;33m"; icon="⚠️  ";;
+		info) icon="ℹ️  ";;
+		success) icon="✅ ";;
+	esac
+	[[ ! -t 2 ]] && color=""
+	if ! ${QUIET_MODE} || [[ "${level}" == "error" ]]; then
+		echo -e "${prefix}${color}${icon}${message}${color:+${reset}}" >&2
 	fi
 }
 
 # Выводит сообщение об ошибке в stderr и завершает скрипт с кодом 1.
 # @param ... все аргументы будут выведены как одна строка.
 function error() {
-	echo "$(t "error_prefix") $@" >&2
+	log error "$@"
 	exit 1
 }
 

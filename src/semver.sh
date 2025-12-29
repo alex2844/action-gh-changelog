@@ -25,6 +25,7 @@ function calculate_next_version() {
 	local bump_minor=false
 	local bump_patch=false
 	
+	log group "$(t "log_calculating_next_version")"
 	read -r major minor patch <<<"$(parse_version "${current_ver}")"
 
 	while IFS='|' read -r _ _ msg _; do
@@ -38,6 +39,8 @@ function calculate_next_version() {
 			bump_patch=true
 		fi
 	done <<<"${commits}"
+	log groupEnd
+
 	if "${bump_major}"; then
 		major=$((major + 1))
 		minor=0

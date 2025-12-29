@@ -2,17 +2,17 @@
 
 source "${__dirname}/git.sh"
 
-declare -g git_host=""
-declare -g repo_path=""
-declare -g previous_tag=""
-declare -g target_tag=""
-declare -g since_date=""
-declare -g until_date=""
+declare -g GIT_HOST=""
+declare -g REPO_PATH=""
+declare -g PREVIOUS_TAG=""
+declare -g TARGET_TAG=""
+declare -g SINCE_DATE=""
+declare -g UNTIL_DATE=""
 
 # Определяет диапазон коммитов (по тегам или датам) на основе аргументов.
 # Устанавливает глобальные переменные:
-#   since_date, until_date
-#   previous_tag, target_tag
+#   SINCE_DATE, UNTIL_DATE
+#   PREVIOUS_TAG, TARGET_TAG
 # @param $1 arg_since - Значение флага -s.
 # @param $2 arg_until - Значение флага -u.
 # @param $3 arg_tag - Значение флага -t.
@@ -21,56 +21,57 @@ function determine_range() {
 	local arg_until="$2"
 	local arg_tag="$3"
 
-	since_date=""
-	until_date=""
-	previous_tag=""
-	target_tag=""
+	SINCE_DATE=""
+	UNTIL_DATE=""
+	PREVIOUS_TAG=""
+	TARGET_TAG=""
 
 	if [[ -n "${arg_since}" ]] || [[ -n "${arg_until}" ]]; then
-		log "$(t "log_mode_by_date")"
-		since_date="${arg_since}"
-		until_date="${arg_until}"
+		log info "$(t "log_mode_by_date")"
+		SINCE_DATE="${arg_since}"
+		UNTIL_DATE="${arg_until}"
 		local date_range_info
-		if [[ -n "${since_date}" ]]; then
-			date_range_info=$(t "log_range_from" "${since_date}")
+		if [[ -n "${SINCE_DATE}" ]]; then
+			date_range_info=$(t "log_range_from" "${SINCE_DATE}")
 		else
 			date_range_info=$(t "log_range_from_beginning")
 		fi
-		[[ -n "${until_date}" ]] && date_range_info+="$(t "log_range_to" "${until_date}")"
-		log "$(t "log_range_defined" "${date_range_info}")"
+		[[ -n "${UNTIL_DATE}" ]] && date_range_info+="$(t "log_range_to" "${UNTIL_DATE}")"
+		log success "$(t "log_range_defined" "${date_range_info}")"
 	else
-		log "$(t "log_range_discovery")"
+		log group "$(t "log_range_discovery")"
 		if [[ -n "${arg_tag}" ]]; then
 			[[ "${arg_tag}" != "v"* ]] && arg_tag="v${arg_tag}"
 			if ! git rev-parse -q --verify "refs/tags/${arg_tag}" &>/dev/null; then
 				error "$(t "error_tag_not_found" "${arg_tag}")"
 			fi
-			target_tag="${arg_tag}"
-			previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-			log "$(t "log_tag_from_arg" "${target_tag}")"
-			log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "${target_tag}")")"
+			TARGET_TAG="${arg_tag}"
+			PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TARGET_TAG}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+			log info "$(t "log_tag_from_arg" "${TARGET_TAG}")"
+			log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 		else
 			if ! git describe --tags --abbrev=0 &>/dev/null; then
-				log "$(t "log_no_tags_found")"
-				previous_tag=$(git rev-list --max-parents=0 HEAD | head -n 1)
-				target_tag="HEAD"
+				log info "$(t "log_no_tags_found")"
+				PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD | head -n 1)
+				TARGET_TAG="HEAD"
 			else
 				local latest_tag=$(git describe --tags --abbrev=0)
 				local commits_after_tag=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null || echo "0")
 				if [[ "${commits_after_tag}" -gt 0 ]]; then
-					log "$(t "log_commits_after_tag" "${commits_after_tag}" "${latest_tag}")"
-					log "$(t "log_generating_for_unreleased")"
-					previous_tag="${latest_tag}"
-					target_tag="HEAD"
-					log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "HEAD")")"
+					log info "$(t "log_commits_after_tag" "${commits_after_tag}" "${latest_tag}")"
+					log info "$(t "log_generating_for_unreleased")"
+					PREVIOUS_TAG="${latest_tag}"
+					TARGET_TAG="HEAD"
+					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "HEAD")")"
 				else
-					log "$(t "log_no_commits_after_tag" "${latest_tag}")"
-					target_tag="${latest_tag}"
-					previous_tag=$(git describe --tags --abbrev=0 "${target_tag}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
-					log "$(t "log_range_defined" "$(t "log_range_from_to" "${previous_tag}" "${target_tag}")")"
+					log info "$(t "log_no_commits_after_tag" "${latest_tag}")"
+					TARGET_TAG="${latest_tag}"
+					PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TARGET_TAG}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 				fi
 			fi
 		fi
+		log groupEnd
 	fi
 }
 
@@ -82,26 +83,27 @@ function fetch_commits_data() {
 	local raw_list_mode="${1:-false}"
 	local all_commits=""
 
-	log "$(t "log_commits_fetching")"
-	log "$(t "log_commits_fetching_local")"
+	log group "$(t "log_commits_fetching")"
+	log info "$(t "log_commits_fetching_local")"
 
-	if [[ -n "${since_date}" ]] || [[ -n "${until_date}" ]]; then
-		all_commits=$(get_local_commits_by_date "${since_date}" "${until_date}" "${raw_list_mode}")
+	if [[ -n "${SINCE_DATE}" ]] || [[ -n "${UNTIL_DATE}" ]]; then
+		all_commits=$(get_local_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}" "${raw_list_mode}")
 	else
-		all_commits=$(get_local_commits_by_tag "${previous_tag}" "${target_tag}" "${raw_list_mode}")
-		if "${use_api}" && [[ -n "${token}" ]]; then
-			log "$(t "log_api_fetching_attempt")"
+		all_commits=$(get_local_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}" "${raw_list_mode}")
+		if "${USE_API}" && [[ -n "${TOKEN}" ]]; then
+			log info "$(t "log_api_fetching_attempt")"
 			local github_commits=""
-			local api_url="https://api.github.com/repos/${repo_path}"
-			if github_commits=$(get_api_commits "${api_url}" "${token}" "${previous_tag}" "${target_tag}"); then
-				log "$(t "log_api_fetch_ok")"
+			local api_url="https://api.github.com/repos/${REPO_PATH}"
+			if github_commits=$(get_api_commits "${api_url}" "${TOKEN}" "${PREVIOUS_TAG}" "${TARGET_TAG}"); then
+				log success "$(t "log_api_fetch_ok")"
 				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
 			else
-				log "$(t "warn_api_fetch_failed_fallback")"
+				log warn "$(t "warn_api_fetch_failed_fallback")"
 			fi
 		fi
 	fi
-	log "$(t "log_commits_processed")"
+	log success "$(t "log_commits_processed")"
+	log groupEnd
 	echo "${all_commits}"
 }
 
@@ -118,9 +120,10 @@ function process_commits() {
 		return
 	fi
 
-	log "$(t "log_deduplication_start")"
+	log group "$(t "log_deduplication_start")"
 	local formatted_commits=$(deduplicate_and_format_commits "${all_commits}" "${show_links}")
-	log "$(t "log_deduplication_done")"
+	log success "$(t "log_deduplication_done")"
+	log groupEnd
 
 	echo "${formatted_commits}"
 }
@@ -137,7 +140,7 @@ function deduplicate_and_format_commits() {
 	declare -A author_links
 	declare -A unpushed_map
 
-	if [[ -n "${repo_path}" ]]; then
+	if [[ -n "${REPO_PATH}" ]]; then
 		local unpushed_list=$(get_unpushed_commits)
 		while read -r short_hash; do
 			[[ -z "${short_hash}" ]] && continue
@@ -145,11 +148,11 @@ function deduplicate_and_format_commits() {
 		done <<<"${unpushed_list}"
 	fi
 
-	if "${show_links}" && [[ -n "${git_host}" ]]; then
+	if "${show_links}" && [[ -n "${GIT_HOST}" ]]; then
 		while IFS='|' read -r unique_hash display_hash message author; do
 			[[ -z "${unique_hash}" ]] && continue
 			if [[ "${author}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-				author_links["${unique_hash}"]="([${author}](https://${git_host}/${author}))"
+				author_links["${unique_hash}"]="([${author}](https://${GIT_HOST}/${author}))"
 			fi
 		done <<<"${all_commits}"
 	fi
@@ -163,8 +166,8 @@ function deduplicate_and_format_commits() {
 		seen_messages["${message}"]=1
 
 		local commit_hash_display="${display_hash}"
-		if "${show_links}" && [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
-			local commit_url="https://${git_host}/${repo_path}/commit/${display_hash}"
+		if "${show_links}" && [[ -n "${GIT_HOST}" ]] && [[ -n "${REPO_PATH}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
+			local commit_url="https://${GIT_HOST}/${REPO_PATH}/commit/${display_hash}"
 			commit_hash_display="[${display_hash}](${commit_url})"
 		fi
 
@@ -205,11 +208,12 @@ function generate_changelog_content() {
 	local raw_list_mode="${2:-false}"
 	local changelog_content=""
 
+	log group "$(t "log_changelog_generation_start")"
 	if "${raw_list_mode}"; then
-		log "$(t "log_mode_raw_list")"
+		log info "$(t "log_mode_raw_list")"
 		changelog_content="${commits}"
 	else
-		log "$(t "log_mode_grouped")"
+		log info "$(t "log_mode_grouped")"
 		local section_content
 		section_content=$(filter_commits "^\* [^ ]+ feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
 		section_content=$(filter_commits "^\* [^ ]+ fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
@@ -219,18 +223,19 @@ function generate_changelog_content() {
 		section_content=$(filter_commits "^\* [^ ]+ (ci|fix\(ci\)|chore\(ci\)|chore\(release\))" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
 		section_content=$(filter_commits "^\* [^ ]+ chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
 
-		if [[ -n "${git_host}" ]] && [[ -n "${repo_path}" ]]; then
+		if [[ -n "${GIT_HOST}" ]] && [[ -n "${REPO_PATH}" ]]; then
 			local changelog_link
-			if [[ "${previous_tag}" == v* ]]; then
-				changelog_link="https://${git_host}/${repo_path}/compare/${previous_tag}...${target_tag}"
+			if [[ "${PREVIOUS_TAG}" == v* ]]; then
+				changelog_link="https://${GIT_HOST}/${REPO_PATH}/compare/${PREVIOUS_TAG}...${TARGET_TAG}"
 			else
-				changelog_link="https://${git_host}/${repo_path}/commits/${target_tag}"
+				changelog_link="https://${GIT_HOST}/${REPO_PATH}/commits/${TARGET_TAG}"
 			fi
 			changelog_content+="$(t "footer_full_changelog"): ${changelog_link}"
 		else
 			changelog_content=$(echo -e "${changelog_content}" | sed 's/\n\n$//')
 		fi
 	fi
-	log "$(t "log_changelog_generation_done")"
+	log success "$(t "log_changelog_generation_done")"
+	log groupEnd
 	echo "${changelog_content}"
 }

@@ -15,7 +15,7 @@ function get_api_commits() {
 	if echo "${response_body}" | jq -e '.message' >/dev/null; then
 		local error_msg=$(echo "${response_body}" | jq -r '.message')
 		if [[ "${error_msg}" == "Not Found" ]]; then
-			log "$(t "warn_api_fetch_failed")"
+			log warn "$(t "warn_api_fetch_failed")"
 			return 1
 		else
 			error "$(t "error_api_returned" "${error_msg}")"
