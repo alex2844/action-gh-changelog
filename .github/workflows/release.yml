@@ -1,0 +1,32 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build Portable Script
+        run: ./build.sh ${{ github.ref_name }}
+
+      - name: Generate Release Notes
+        run: ./dist/changelog -l -o RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: ./RELEASE_NOTES.md
+          files: ./dist/changelog
+          draft: false
+          prerelease: false
