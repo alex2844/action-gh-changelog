@@ -75,3 +75,11 @@ I18N["section_docs"]="### 📖 Документация"
 I18N["section_ci"]="### ⚙️ CI/CD"
 I18N["section_misc"]="### 🔧 Прочее"
 I18N["footer_full_changelog"]="**Full Changelog**"
+
+# Build Script
+I18N["log_build_start"]="🚀 Начало сборки..."
+I18N["log_build_embedding"]="📦 Встраивание: %s"
+I18N["log_build_done"]="✅ Готово: %s"
+I18N["log_build_check_ver"]="🔍 Проверка версии собранного файла:"
+I18N["error_build_check_failed"]="⚠️  Не удалось получить версию собранного файла."
+I18N["error_file_not_found"]="Файл не найден: %s"

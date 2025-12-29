@@ -75,3 +75,11 @@ I18N["section_docs"]="### 📖 Documentation"
 I18N["section_ci"]="### ⚙️ Continuous Integration"
 I18N["section_misc"]="### 🔧 Miscellaneous"
 I18N["footer_full_changelog"]="**Full Changelog**"
+
+# Build Script
+I18N["log_build_start"]="🚀 Starting build..."
+I18N["log_build_embedding"]="📦 Embedding: %s"
+I18N["log_build_done"]="✅ Done: %s"
+I18N["log_build_check_ver"]="🔍 Checking version of the built file:"
+I18N["error_build_check_failed"]="⚠️  Failed to retrieve version from built file."
+I18N["error_file_not_found"]="File not found: %s"
