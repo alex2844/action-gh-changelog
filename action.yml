@@ -1,0 +1,79 @@
+name: 'Changelog Generator'
+description: 'A lightweight CLI tool to generate changelogs based on Conventional Commits.'
+author: 'Alex Smith'
+branding:
+  icon: 'list'
+  color: 'blue'
+
+inputs:
+  output:
+    description: 'Path to the output file (e.g. RELEASE_NOTES.md). If empty, outputs to stdout and step output only.'
+    required: false
+  tag:
+    description: 'Generate changelog for a specific tag (defaults to latest).'
+    required: false
+  since:
+    description: 'Start date/ref to fetch commits from (e.g. "2025-01-01").'
+    required: false
+  until:
+    description: 'End date/ref to fetch commits to.'
+    required: false
+  links:
+    description: 'Add links to commit hashes and authors (true/false).'
+    required: false
+    default: 'true'
+  raw:
+    description: 'Output as a raw list without grouping (true/false).'
+    required: false
+    default: 'false'
+  lang:
+    description: 'Language for headers (e.g. "en" or "ru").'
+    required: false
+    default: 'en'
+  token:
+    description: 'GitHub Token for API requests.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  changelog:
+    description: 'The generated changelog content.'
+    value: ${{ steps.generate.outputs.changelog }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Generate Changelog
+      id: generate
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        LANG: ${{ inputs.lang }}
+      run: |
+        OPTS=()
+        [[ -n "${{ inputs.tag }}" ]] && OPTS+=(--tag "${{ inputs.tag }}")
+        [[ -n "${{ inputs.since }}" ]] && OPTS+=(--since "${{ inputs.since }}")
+        [[ -n "${{ inputs.until }}" ]] && OPTS+=(--until "${{ inputs.until }}")
+        [[ "${{ inputs.links }}" == "true" ]] && OPTS+=(--links)
+        [[ "${{ inputs.raw }}" == "true" ]] && OPTS+=(--raw)
+
+        if [[ -n "${{ inputs.output }}" ]]; then
+          OUTPUT="${{ inputs.output }}"
+        else
+          OUTPUT=$(mktemp)
+        fi
+        OPTS+=(--output "${OUTPUT}")
+
+        "${GITHUB_ACTION_PATH}/src/main.sh" "${OPTS[@]}"
+        cat "${OUTPUT}"
+
+        EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+        {
+          echo "changelog<<$EOF"
+          cat "${OUTPUT}"
+          echo "$EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        if [[ -z "${{ inputs.output }}" ]]; then
+          rm -f "${OUTPUT}"
+        fi
