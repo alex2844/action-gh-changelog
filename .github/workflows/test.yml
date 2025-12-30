@@ -1,0 +1,48 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test generation to file
+        id: file_test
+        uses: ./
+        with:
+          output: 'TEST_RESULT.md'
+          lang: 'ru'
+
+      - name: Check file existence
+        run: |
+          if [[ -f "TEST_RESULT.md" ]]; then
+            echo "✅ Файл создан успешно"
+            cat TEST_RESULT.md
+          else
+            echo "❌ Файл не найден!"
+            exit 1
+          fi
+
+      - name: Test generation to stdout
+        id: stdout_test
+        uses: ./
+        with:
+          links: 'false'
+
+      - name: Check outputs
+        run: |
+          if [[ -n "${{ steps.stdout_test.outputs.changelog }}" ]]; then
+            echo "✅ Output получен успешно"
+            echo "${{ steps.stdout_test.outputs.changelog }}"
+          else
+            echo "❌ Output пустой!"
+            exit 1
+          fi
