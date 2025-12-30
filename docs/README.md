@@ -1,132 +1,130 @@
-# 📜 Генератор Changelog
+# 📜 Changelog Generator
 
-Простой, мощный и не имеющий лишних зависимостей скрипт на Bash
-для автоматической генерации красивых списков изменений (changelog)
-из вашей Git-истории.
+A lightweight, dependency-free CLI tool to generate beautiful changelogs
+from your Git history based on
+[Conventional Commits](https://www.conventionalcommits.org/).
 
-Идеально подходит для автоматизации создания релизов в GitHub Actions
-и для быстрой подготовки отчетов о проделанной работе.
+Designed to be portable, fast, and easy to use in CI/CD pipelines
+(GitHub Actions).
 
-## ✨ Ключевые возможности
+[🇷🇺 Читать на русском](README.ru.md)
 
-- **Автоматическое определение диапазона**: Сам находит последний тег
-    и генерирует список изменений для новых, еще не выпущенных коммитов.
-- **Гибкая настройка диапазона**: Позволяет генерировать changelog
-    для конкретного тега или за указанный период времени (`--since`, `--until`).
-- **Умная группировка**: Автоматически группирует коммиты по разделам,
-    следуя принципам [Conventional Commits](https://www.conventionalcommits.org/).
-- **Поддержка сложных случаев**: Корректно "распаковывает"
-    **Squashed commits** из GitHub и выделяет **Revert** коммиты
-    в отдельную секцию.
-- **Интеграция с GitHub API**: Опционально использует API GitHub
-    для получения более точных данных об авторах коммитов и для формирования
-    ссылки "Full Changelog".
-- **Разные форматы вывода**: Может выводить как сгруппированный
-    Markdown-отчет, так и простой список коммитов (`--raw`).
-- **Режим для автоматизации**: "Тихий" режим (`--quiet`) отключает все
-    служебные сообщения, оставляя только чистый результат, что идеально
-    для CI/CD.
-- **Портативность**: Написан на чистом Bash. Требует только `git`,
-    а для работы с API — `curl` и `jq`.
+## ✨ Features
 
-## 🚀 Установка
+- **Zero Dependencies**: Written in pure Bash. Only requires `git`
+    (and `curl`/`jq` for API features).
+- **Automatic Range**: Automatically detects the latest tag and generates
+    a changelog for unreleased changes.
+- **Smart Grouping**: Groups commits by type (`feat`, `fix`, `perf`, etc.).
+- **Squash Support**: Correctly handles "Squashed commits" from GitHub,
+    grouping them visually under one parent hash.
+- **Links Integration**: Can generate clickable links to commits and
+    authors (GitHub API).
+- **Portable**: Can be installed as a standalone CLI tool.
 
-На данный момент, самый простой способ — это клонировать репозиторий:
+## 🚀 Installation
 
-```sh
-git clone https://github.com/alex2844/action-gh-changelog.git
-cd action-gh-changelog
-chmod +x src/main.sh
+### CLI (Linux/macOS)
+
+Install the latest version to `~/.local/bin` with a single command:
+
+<!-- markdownlint-capture -->
+<!-- markdownlint-disable MD013 -->
+```bash
+curl -fsSL https://raw.githubusercontent.com/alex2844/action-gh-changelog/main/install.sh | bash
+```
+<!-- markdownlint-restore -->
+
+Or download the binary manually from [Releases][releases].
+
+### GitHub Actions
+
+You can use this tool directly in your workflows without manual installation.
+
+```yaml
+- name: Generate Changelog
+  uses: alex2844/action-gh-changelog@v1
+  with:
+    output: 'RELEASE_NOTES.md'
+    # lang: 'ru' # Optional: language for headers (en/ru)
 ```
 
-## 📋 Использование
+#### Action Inputs
 
-```sh
-./src/main.sh [ФЛАГИ]
+| Input | Description | Default |
+| :--- | :--- | :--- |
+| `output` | Output file path. If not set, prints to stdout. | - |
+| `tag` | Generate changelog for a specific tag. | `latest` |
+| `since` | Start date/ref to fetch commits from. | - |
+| `until` | End date/ref to fetch commits to. | - |
+| `links` | Add links to commit hashes and authors. | `true` |
+| `raw` | Output as a raw list without grouping. | `false` |
+| `lang` | Language for headers (`en`, `ru`). | `en` |
+
+## 📋 CLI Usage
+
+```bash
+changelog [OPTIONS]
 ```
 
-### Флаги
+### Options
 
-| Флаг | Описание |
-| --- | --- |
-| `-t <тег>` | Сгенерировать changelog для указанного тега. |
-| `-o <файл>` | Сохранить результат в файл вместо вывода на экран. |
-| `-s <дата>` | Начальная дата для выборки коммитов (`'1 month ago'`). |
-| `-u <дата>` | Конечная дата для выборки коммитов. |
-| `-r` | Вывести коммиты в виде простого списка (без группировки). |
-| `-q` | Тихий режим (не выводить служебные сообщения). |
-| `-h` | Показать справку. |
+| Flag | Long Flag | Description |
+| :--- | :--- | :--- |
+| `-t` | `--tag` | Tag to generate the changelog for. |
+| `-o` | `--output` | Output file path (default: stdout). |
+| `-s` | `--since` | Start date (e.g. `'2025-01-01'`). |
+| `-u` | `--until` | End date. |
+| `-l` | `--links` | Add links to commit hashes and authors. |
+| `-r` | `--raw` | Output raw list without grouping. |
+| `-q` | `--quiet` | Quiet mode (errors only). |
+| `-v` | `--version` | Show version. |
+| `-h` | `--help` | Show help. |
 
-### Примеры
+### Examples
 
-1. **Сгенерировать changelog для невыпущенных изменений (самый частый случай):**
+**1. Generate changelog for unreleased changes (printed to console):**
 
-    ```sh
-    ./src/main.sh
-    ```
+```bash
+changelog
+```
 
-2. **Получить список всех коммитов за последний год в виде простого списка:**
+**2. Generate release notes for a specific tag and save to file:**
 
-    ```sh
-    ./src/main.sh -s "1 year ago" -r
-    ```
+```bash
+changelog -t v1.0.0 -l -o notes.md
+```
 
-3. **Сгенерировать описание для релиза v1.2.0 и молча сохранить его в файл:**
+**3. Get a raw list of commits for the last month:**
 
-    ```sh
-    ./src/main.sh -t v1.2.0 -q -o release_notes.md
-    ```
+```bash
+changelog --since "1 month ago" --raw
+```
 
-## 📝 Соглашение о коммитах
+## 📝 Commit Convention
 
-Для корректной группировки скрипт ожидает, что ваши коммиты следуют
-соглашению [Conventional Commits](https://www.conventionalcommits.org/).
-Вот основные типы, которые распознает скрипт:
+The script expects your commits to follow the
+[Conventional Commits](https://www.conventionalcommits.org/) specification.
+Here are the main types recognized by the script:
 
-| Тип | Раздел | Описание |
-| --- | --- | --- |
-| `feat` | 🚀 Новые возможности | Новая функциональность. |
-| `fix` | 🐛 Исправления | Исправление ошибки. |
-| `refactor` | ✨ Улучшения и оптимизация | Правка кода без изменения логики. |
-| `perf` | ✨ Улучшения и оптимизация | Улучшение производительности. |
-| `docs` | 📖 Документация | Только изменения в документации. |
-| `ci` | ⚙️ CI/CD | Изменения в CI/CD. |
-| `chore` | 🔧 Прочее | Обслуживающие изменения. |
-| `revert` | ↩️ Отмены | Откат предыдущего коммита. |
+- **`feat`** (🚀 Features): A new feature.
+- **`fix`** (🐛 Bug Fixes): A bug fix.
+- **`refactor`** (✨ Improvements): A code change that neither fixes a bug
+    nor adds a feature.
+- **`perf`** (✨ Improvements): A code change that improves performance.
+- **`revert`** (⏪ Reverted Changes): Reverts a previous commit.
+- **`docs`** (📖 Documentation): Documentation only changes.
+- **`ci`** (⚙️ Continuous Integration): Changes to CI configuration
+    files and scripts.
+- **`chore`** (🔧 Miscellaneous): Other changes that don't modify src
+    or test files.
 
-## 🗺️ План развития (TODO)
+## 🤝 Contributing
 
-Проект активно развивается. Вот наши ближайшие цели:
+We welcome contributions! If you find a bug or have an idea, please
+open an [Issue][issues].\
+If you want to help with code, we welcome your [Pull Requests][pulls].
 
-- [x] **Полная модульная архитектура**
-  - [x] Разбить монолитный скрипт на логические модули для удобства
-          поддержки (`git.sh`, `github.sh`, `utils.sh` и т.д.).
-  - [x] Вынести все пользовательские строки в отдельные файлы для
-          подготовки к интернационализации.
-
-- [x] **Интернационализация (i18n)**
-  - [x] Добавить поддержку английского и русского языков.
-  - [x] Создать простую архитектуру для легкого добавления новых языков
-        сообществом.
-
-- [x] **Портативная сборка**
-  - [x] Настроить скрипт сборки, который будет "встраивать" все модули
-          в один исполняемый файл для максимальной портативности.
-
-- [x] **GitHub Action**
-  - [x] Создать готовый Action для автоматической генерации описаний
-          к релизам при публикации нового тега.
-
-- [x] **Удобный установщик**
-  - [x] Сделать установку такой же простой, как у лучших CLI-инструментов,
-          с помощью команды `curl ... | bash`.
-
-- [ ] **Полная документация**
-  - [ ] Написать подробные инструкции по каждому аспекту использования
-          и гайд для контрибьюторов.
-
-## 🙌 Участие в проекте
-
-Мы приветствуем любой вклад! Если у вас есть идеи, предложения или вы
-нашли ошибку, пожалуйста, создайте [Issue](../../../issues).
-Если вы хотите помочь с кодом, мы будем рады вашим [Pull-запросам](../../../pulls).
+[issues]: https://github.com/alex2844/action-gh-changelog/issues
+[pulls]: https://github.com/alex2844/action-gh-changelog/pulls
+[releases]: https://github.com/alex2844/action-gh-changelog/releases
