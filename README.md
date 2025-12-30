@@ -7,7 +7,7 @@ from your Git history based on
 Designed to be portable, fast, and easy to use in CI/CD pipelines
 (GitHub Actions).
 
-[🇷🇺 Читать на русском](README.ru.md)
+[🇷🇺 Читать на русском](docs/README.ru.md)
 
 ## ✨ Features
 

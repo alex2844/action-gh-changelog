@@ -1,4 +1,4 @@
-name: 'Changelog Generator'
+name: 'GitHub Changelog Generator (Bash)'
 description: 'A lightweight CLI tool to generate changelogs based on Conventional Commits.'
 author: 'Alex Smith'
 branding:

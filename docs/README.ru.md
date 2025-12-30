@@ -7,7 +7,7 @@
 Проект создан быть портативным, быстрым и удобным для использования
 как локально, так и в CI/CD (GitHub Actions).
 
-[🇺🇸 Read in English](README.md)
+[🇺🇸 Read in English](../README.md)
 
 ## ✨ Возможности
 
