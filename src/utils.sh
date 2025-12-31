@@ -29,8 +29,8 @@ function log() {
 			;;
 		esac
 	fi
-	local color=""
 	local reset="\033[0m"
+	local color=""
 	local icon=""
 	local prefix=""
 	if ! "${QUIET_MODE}"; then

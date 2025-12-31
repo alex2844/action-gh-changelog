@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
 declare -gA I18N
+declare -g LOCALE=""
 
 # Загружает языковой пакет (.sh файл) на основе кода локали.
 # Определяет язык по ru/be/uk кодам, для всех остальных использует английский.
 # @param $1 locale - Код локали (например, "ru" или "en").
 function load_locate() {
 	local locale="$1"
+	[[ "${locale}" == "${LOCALE}" ]] && return
 	case "${locale}" in
 		ru*|be*|uk*)
 			source "${__dirname}/locales/ru.sh"
@@ -15,6 +17,7 @@ function load_locate() {
 			source "${__dirname}/locales/en.sh"
 		;;
 	esac
+	LOCALE="${locale}"
 }
 
 # Возвращает переведенную строку по ключу.

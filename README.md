@@ -75,7 +75,8 @@ changelog [OPTIONS]
 | `-o` | `--output` | Output file path (default: stdout). |
 | `-s` | `--since` | Start date (e.g. `'2025-01-01'`). |
 | `-u` | `--until` | End date. |
-| `-l` | `--links` | Add links to commit hashes and authors. |
+| `-l` | `--lang` | Language of the output (`en`, `ru`). |
+| `-L` | `--links` | Add links to commit hashes and authors. |
 | `-r` | `--raw` | Output raw list without grouping. |
 | `-q` | `--quiet` | Quiet mode (errors only). |
 | `-v` | `--version` | Show version. |
@@ -92,7 +93,7 @@ changelog
 **2. Generate release notes for a specific tag and save to file:**
 
 ```bash
-changelog -t v1.0.0 -l -o notes.md
+changelog -t v1.0.0 -L -o notes.md
 ```
 
 **3. Get a raw list of commits for the last month:**

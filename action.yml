@@ -48,9 +48,9 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
-        LANG: ${{ inputs.lang }}
       run: |
         OPTS=()
+        [[ -n "${{ inputs.lang }}" ]] && OPTS+=(--lang "${{ inputs.lang }}")
         [[ -n "${{ inputs.tag }}" ]] && OPTS+=(--tag "${{ inputs.tag }}")
         [[ -n "${{ inputs.since }}" ]] && OPTS+=(--since "${{ inputs.since }}")
         [[ -n "${{ inputs.until }}" ]] && OPTS+=(--until "${{ inputs.until }}")

@@ -6,8 +6,8 @@ readonly __dirname="$(dirname "$(readlink -e "${__source}")")"
 readonly __invoke="${0/#\/*/${__filename}}"
 readonly __version='main'
 
-source "${__dirname}/i18n.sh"
 source "${__dirname}/utils.sh"
+source "${__dirname}/i18n.sh"
 source "${__dirname}/commits.sh"
 source "${__dirname}/remote.sh"
 source "${__dirname}/semver.sh"
@@ -19,8 +19,9 @@ function usage() {
 	log "$(t "usage_opt_o")"
 	log "$(t "usage_opt_s")"
 	log "$(t "usage_opt_u")"
-	log "$(t "usage_opt_r")"
 	log "$(t "usage_opt_l")"
+	log "$(t "usage_opt_L")"
+	log "$(t "usage_opt_r")"
 	log "$(t "usage_opt_n")"
 	log "$(t "usage_opt_q")"
 	log "$(t "usage_opt_v")"
@@ -42,6 +43,7 @@ function check_deps() {
 # @param $@ - Аргументы командной строки, переданные скрипту.
 function main() {
 	local raw_args="$*"
+	local lang_arg=""
 	local output_file=""
 	local target_tag=""
 	local since_date=""
@@ -51,16 +53,17 @@ function main() {
 	local show_next_version=false
 	load_locate "${LANG%_*}"
 
-	local flags="output:o tag:t since:s until:u raw:r links:l next-version:n quiet:q help:h version:v"
+	local flags="output:o tag:t since:s until:u raw:r links:L next-version:n quiet:q help:h version:v lang:l"
 	eval "$(normalize_args "${flags}" "$@")"
-	while getopts ":o:t:s:u:lrnqhv" OPT; do
+	while getopts ":o:t:s:u:rnLqhvl:" OPT; do
 		case ${OPT} in
 			o) output_file=${OPTARG};;
 			t) target_tag=${OPTARG};;
 			s) since_date=${OPTARG};;
 			u) until_date=${OPTARG};;
+			l) lang_arg="${OPTARG}";;
+			L) show_links=true;;
 			r) raw_list_mode=true;;
-			l) show_links=true;;
 			n) show_next_version=true;;
 			q) QUIET_MODE=true;;
 			h) usage;;
@@ -69,6 +72,7 @@ function main() {
 			:) error "$(t "error_flag_requires_arg" "$(resolve_flag "${OPTARG}" "${OPTIND}" "${flags}" "${raw_args}" "$@")")";;
 		esac
 	done
+	[[ -n "${lang_arg}" ]] && load_locate "${lang_arg}"
 
 	check_deps
 
