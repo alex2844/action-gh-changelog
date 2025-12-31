@@ -56,6 +56,12 @@ function error() {
 	exit 1
 }
 
+# Кодирует строку для использования в URL (процент-кодирование).
+# @param $1 string
+function urlencode() {
+	jq -nr --arg v "${1:-}" '$v|@uri'
+}
+
 # Удаляет пробельные символы в начале и в конце строки.
 # @param $1 Строка для обработки.
 function trim() {

@@ -2,8 +2,6 @@
 
 source "${__dirname}/git.sh"
 
-declare -g GIT_HOST=""
-declare -g REPO_PATH=""
 declare -g PREVIOUS_TAG=""
 declare -g TARGET_TAG=""
 declare -g SINCE_DATE=""
@@ -95,13 +93,22 @@ function fetch_commits_data() {
 
 	if [[ -n "${SINCE_DATE}" ]] || [[ -n "${UNTIL_DATE}" ]]; then
 		all_commits=$(get_local_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}" "${raw_list_mode}")
+		if "${USE_API}" && [[ -n "${TOKEN}" ]]; then
+			log info "$(t "log_api_fetching_attempt")"
+			local github_commits=""
+			if github_commits=$(get_github_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}"); then
+				log success "$(t "log_api_fetch_ok")"
+				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
+			else
+				log warn "$(t "warn_api_fetch_failed_fallback")"
+			fi
+		fi
 	else
 		all_commits=$(get_local_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}" "${raw_list_mode}")
 		if "${USE_API}" && [[ -n "${TOKEN}" ]]; then
 			log info "$(t "log_api_fetching_attempt")"
 			local github_commits=""
-			local api_url="https://api.github.com/repos/${REPO_PATH}"
-			if github_commits=$(get_api_commits "${api_url}" "${TOKEN}" "${PREVIOUS_TAG}" "${TARGET_TAG}"); then
+			if github_commits=$(get_github_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}"); then
 				log success "$(t "log_api_fetch_ok")"
 				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
 			else

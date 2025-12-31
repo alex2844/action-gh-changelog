@@ -3,6 +3,8 @@
 source "${__dirname}/api/github.sh"
 
 declare -g USE_API=false
+declare -g GIT_HOST=""
+declare -g REPO_PATH=""
 declare -g TOKEN=""
 
 # Проверяет наличие утилит (jq, curl), необходимых для работы с API.
