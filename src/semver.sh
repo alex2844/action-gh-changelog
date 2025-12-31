@@ -8,8 +8,11 @@ function parse_version() {
 		echo "0 0 0"
 		return
 	fi
-	if [[ "${ver}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-		echo "${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[3]}"
+	if [[ "${ver}" =~ ^([0-9]+)(\.([0-9]+))?(\.([0-9]+))?$ ]]; then
+		local major="${BASH_REMATCH[1]}"
+		local minor="${BASH_REMATCH[3]:-0}"
+		local patch="${BASH_REMATCH[5]:-0}"
+		echo "${major} ${minor} ${patch}"
 	else
 		echo "0 0 0"
 	fi
