@@ -154,13 +154,11 @@ function deduplicate_and_format_commits() {
 	declare -A author_links
 	declare -A unpushed_map
 
-	if [[ -n "${REPO_PATH}" ]]; then
-		local unpushed_list=$(get_unpushed_commits)
-		while read -r short_hash; do
-			[[ -z "${short_hash}" ]] && continue
-			unpushed_map["${short_hash}"]=1
-		done <<<"${unpushed_list}"
-	fi
+	local unpushed_list=$(get_unpushed_commits)
+	while read -r short_hash; do
+		[[ -z "${short_hash}" ]] && continue
+		unpushed_map["${short_hash}"]=1
+	done <<<"${unpushed_list}"
 
 	if "${show_links}" && [[ -n "${GIT_HOST}" ]]; then
 		while IFS='|' read -r unique_hash display_hash message author; do
@@ -172,6 +170,7 @@ function deduplicate_and_format_commits() {
 	fi
 
 	while IFS='|' read -r unique_hash display_hash message author; do
+		local mask="-"
 		[[ -z "${unique_hash}" ]] && continue
 		if [[ -n "${seen_hashes[${unique_hash}]:-}" ]] || [[ -n "${seen_messages[${message}]:-}" ]]; then
 			continue
@@ -180,9 +179,12 @@ function deduplicate_and_format_commits() {
 		seen_messages["${message}"]=1
 
 		local commit_hash_display="${display_hash}"
-		if "${show_links}" && [[ -n "${GIT_HOST}" ]] && [[ -n "${REPO_PATH}" ]] && [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
-			local commit_url="https://${GIT_HOST}/${REPO_PATH}/commit/${display_hash}"
-			commit_hash_display="[${display_hash}](${commit_url})"
+		if [[ -z "${unpushed_map[${display_hash}]:-}" ]]; then
+			mask="*"
+			if "${show_links}" && [[ -n "${GIT_HOST}" ]] && [[ -n "${REPO_PATH}" ]]; then
+				local commit_url="https://${GIT_HOST}/${REPO_PATH}/commit/${display_hash}"
+				commit_hash_display="[${display_hash}](${commit_url})"
+			fi
 		fi
 
 		local author_info
@@ -192,7 +194,7 @@ function deduplicate_and_format_commits() {
 			author_info="(${author})"
 		fi
 
-		echo "* ${commit_hash_display} ${message} ${author_info}"
+		echo "${mask} ${commit_hash_display} ${message} ${author_info}"
 	done <<<"${all_commits}"
 }
 
@@ -205,7 +207,7 @@ function filter_commits() {
 	local include_pattern="$1"
 	local exclude_pattern="${2:-}"
 	local all_commits="$3"
-	local commits=$(echo "${all_commits}" | grep -E "${include_pattern}" || true)
+	local commits=$(echo "${all_commits}" | grep -E "^(\*|-) [^ ]+ ${include_pattern}" || true)
 	if [[ -n "${exclude_pattern}" ]]; then
 		commits=$(echo "${commits}" | grep -E -v "${exclude_pattern}" || true)
 	fi
@@ -229,13 +231,13 @@ function generate_changelog_content() {
 	else
 		log info "$(t "log_mode_grouped")"
 		local section_content
-		section_content=$(filter_commits "^\* [^ ]+ feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ (refactor|perf)" "" "${commits}") && changelog_content+="$(t "section_improvements")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ revert" "" "${commits}" | sed -E 's/^(\* [^ ]+) revert:[[:space:]]*/\1 /i') && changelog_content+="$(t "section_reverts")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ docs" "" "${commits}") && changelog_content+="$(t "section_docs")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ (ci|fix\(ci\)|chore\(ci\)|chore\(release\))" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
-		section_content=$(filter_commits "^\* [^ ]+ chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
+		section_content=$(filter_commits "feat" "" "${commits}") && changelog_content+="$(t "section_features")\n${section_content}\n\n"
+		section_content=$(filter_commits "fix" "fix\(ci\)" "${commits}") && changelog_content+="$(t "section_fixes")\n${section_content}\n\n"
+		section_content=$(filter_commits "(refactor|perf)" "" "${commits}") && changelog_content+="$(t "section_improvements")\n${section_content}\n\n"
+		section_content=$(filter_commits "revert" "" "${commits}" | sed -E 's/^([*-] [^ ]+) revert:[[:space:]]*/\1 /i') && changelog_content+="$(t "section_reverts")\n${section_content}\n\n"
+		section_content=$(filter_commits "docs" "" "${commits}") && changelog_content+="$(t "section_docs")\n${section_content}\n\n"
+		section_content=$(filter_commits "(ci|fix\(ci\)|chore\(ci\)|chore\(release\))" "" "${commits}") && changelog_content+="$(t "section_ci")\n${section_content}\n\n"
+		section_content=$(filter_commits "chore" "chore\(ci\)|chore\(release\)|revert" "${commits}") && changelog_content+="$(t "section_misc")\n${section_content}\n\n"
 
 		if [[ -n "${GIT_HOST}" ]] && [[ -n "${REPO_PATH}" ]]; then
 			local changelog_link
