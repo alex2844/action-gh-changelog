@@ -45,17 +45,21 @@ function determine_range() {
 			if ! git rev-parse -q --verify "refs/tags/${arg_tag}" &>/dev/null; then
 				error "$(t "error_tag_not_found" "${arg_tag}")"
 			fi
+			local prev_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" "${arg_tag}^" 2>/dev/null || true)
+			[[ -z "${prev_tag}" ]] && prev_tag=$(git describe --tags --abbrev=0 "${arg_tag}^" 2>/dev/null || true)
+			[[ -z "${prev_tag}" ]] && prev_tag=$(git rev-list --max-parents=0 HEAD | head -n 1 || true)
 			TARGET_TAG="${arg_tag}"
-			PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TARGET_TAG}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+			PREVIOUS_TAG="${prev_tag}"
 			log info "$(t "log_tag_from_arg" "${TARGET_TAG}")"
 			log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 		else
-			if ! git describe --tags --abbrev=0 &>/dev/null; then
+			local latest_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || true)
+			[[ -z "${latest_tag}" ]] && latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+			if [[ -z "${latest_tag}" ]]; then
 				log info "$(t "log_no_tags_found")"
 				PREVIOUS_TAG=""
 				TARGET_TAG="HEAD"
 			else
-				local latest_tag=$(git describe --tags --abbrev=0)
 				local commits_after_tag=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null || echo "0")
 				if [[ "${commits_after_tag}" -gt 0 ]]; then
 					log info "$(t "log_commits_after_tag" "${commits_after_tag}" "${latest_tag}")"
@@ -65,8 +69,11 @@ function determine_range() {
 					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "HEAD")")"
 				else
 					log info "$(t "log_no_commits_after_tag" "${latest_tag}")"
+					local prev_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" "${latest_tag}^" 2>/dev/null || true)
+					[[ -z "${prev_tag}" ]] && prev_tag=$(git describe --tags --abbrev=0 "${latest_tag}^" 2>/dev/null || true)
+					[[ -z "${prev_tag}" ]] && prev_tag=$(git rev-list --max-parents=0 HEAD | head -n 1 || true)
 					TARGET_TAG="${latest_tag}"
-					PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TARGET_TAG}^" 2>/dev/null || git rev-list --max-parents=0 HEAD | head -n 1)
+					PREVIOUS_TAG="${prev_tag}"
 					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 				fi
 			fi
