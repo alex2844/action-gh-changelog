@@ -52,7 +52,7 @@ function determine_range() {
 		else
 			if ! git describe --tags --abbrev=0 &>/dev/null; then
 				log info "$(t "log_no_tags_found")"
-				PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD | head -n 1)
+				PREVIOUS_TAG=""
 				TARGET_TAG="HEAD"
 			else
 				local latest_tag=$(git describe --tags --abbrev=0)

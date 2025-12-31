@@ -11,9 +11,14 @@ function get_local_commits_by_tag() {
 	local to_ref="${2:-HEAD}"
 	local reverse_mode="${3:-false}"
 	local reverse_arg=""
+	local git_range=""
 	"${reverse_mode}" && reverse_arg="--reverse"
-	git log --no-merges ${reverse_arg} --pretty=format:"%n###GIT_ENTRY_START###%n%H|%an%n%B" "${from_ref}".."${to_ref}" 2>/dev/null | parse_git_log || true
-	git log --no-merges ${reverse_arg} --pretty=format:"%n${GIT_LOG_DELIMITER}%n%H|%an%n%B" "${from_ref}".."${to_ref}" 2>/dev/null | parse_git_log || true
+	if [[ -n "${from_ref}" ]]; then
+		git_range="${from_ref}..${to_ref}"
+	else
+		git_range="${to_ref}"
+	fi
+	git log --no-merges ${reverse_arg} --pretty=format:"%n${GIT_LOG_DELIMITER}%n%H|%an%n%B" "${git_range}" 2>/dev/null | parse_git_log || true
 }
 
 # Получает и парсит коммиты из локального репозитория за указанный период.
@@ -51,7 +56,7 @@ function parse_git_log() {
 	local found_inner_msg=0
 	local squash_idx=0
 
-	while IFS= read -r line; do
+	while IFS= read -r line || [[ -n "${line}" ]]; do
 		if [[ "${line}" == "${GIT_LOG_DELIMITER}" ]]; then
 			state="header"
 			is_squashed=0
