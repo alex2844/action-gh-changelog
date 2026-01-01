@@ -81,7 +81,7 @@ function determine_range() {
 }
 
 # Агрегирует получение "сырых" коммитов из локального репозитория и,
-# если применимо, из GitHub API.
+# если применимо, из удаленного API.
 # @param $1 raw_list_mode - `true` для вывода в хронологическом порядке.
 # @return Многострочная переменная с коммитами в формате "хеш|сообщение|автор".
 function fetch_commits_data() {
@@ -93,27 +93,15 @@ function fetch_commits_data() {
 
 	if [[ -n "${SINCE_DATE}" ]] || [[ -n "${UNTIL_DATE}" ]]; then
 		all_commits=$(get_local_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}" "${raw_list_mode}")
-		if "${USE_API}" && [[ -n "${TOKEN}" ]]; then
-			log info "$(t "log_api_fetching_attempt")"
-			local github_commits=""
-			if github_commits=$(get_github_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}"); then
-				log success "$(t "log_api_fetch_ok")"
-				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
-			else
-				log warn "$(t "warn_api_fetch_failed_fallback")"
-			fi
+		local remote_commits=""
+		if remote_commits=$(get_remote_commits_by_date "${SINCE_DATE}" "${UNTIL_DATE}"); then
+			all_commits=$(printf "%s\n%s" "${all_commits}" "${remote_commits}")
 		fi
 	else
 		all_commits=$(get_local_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}" "${raw_list_mode}")
-		if "${USE_API}" && [[ -n "${TOKEN}" ]]; then
-			log info "$(t "log_api_fetching_attempt")"
-			local github_commits=""
-			if github_commits=$(get_github_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}"); then
-				log success "$(t "log_api_fetch_ok")"
-				all_commits=$(printf "%s\n%s" "${all_commits}" "${github_commits}")
-			else
-				log warn "$(t "warn_api_fetch_failed_fallback")"
-			fi
+		local remote_commits=""
+		if remote_commits=$(get_remote_commits_by_tag "${PREVIOUS_TAG}" "${TARGET_TAG}"); then
+			all_commits=$(printf "%s\n%s" "${all_commits}" "${remote_commits}")
 		fi
 	fi
 	log success "$(t "log_commits_processed")"
