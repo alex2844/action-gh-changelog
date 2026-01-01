@@ -7,6 +7,33 @@ declare -g TARGET_TAG=""
 declare -g SINCE_DATE=""
 declare -g UNTIL_DATE=""
 
+# Получает предыдущий тег относительно указанного
+# @param $1 current_tag - Текущий тег
+# @return Выводит предыдущий тег или пустую строку
+function get_previous_tag() {
+	local current_tag="$1"
+	local all_tags=$(git tag --sort=version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+	if [[ -z "${all_tags}" ]]; then
+		return
+	fi
+	
+	local found_current=false
+	local prev=""
+	while IFS= read -r tag; do
+		if [[ "${tag}" == "${current_tag}" ]]; then
+			found_current=true
+			break
+		fi
+		prev="${tag}"
+	done <<<"${all_tags}"
+	
+	if ${found_current} && [[ -n "${prev}" ]]; then
+		echo "${prev}"
+	else
+		git rev-list --max-parents=0 HEAD | head -n 1 || true
+	fi
+}
+
 # Определяет диапазон коммитов (по тегам или датам) на основе аргументов.
 # Устанавливает глобальные переменные:
 #   SINCE_DATE, UNTIL_DATE
@@ -43,16 +70,12 @@ function determine_range() {
 			if ! git rev-parse -q --verify "refs/tags/${arg_tag}" &>/dev/null; then
 				error "$(t "error_tag_not_found" "${arg_tag}")"
 			fi
-			local prev_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" "${arg_tag}^" 2>/dev/null || true)
-			[[ -z "${prev_tag}" ]] && prev_tag=$(git describe --tags --abbrev=0 "${arg_tag}^" 2>/dev/null || true)
-			[[ -z "${prev_tag}" ]] && prev_tag=$(git rev-list --max-parents=0 HEAD | head -n 1 || true)
 			TARGET_TAG="${arg_tag}"
-			PREVIOUS_TAG="${prev_tag}"
+			PREVIOUS_TAG=$(get_previous_tag "${arg_tag}")
 			log info "$(t "log_tag_from_arg" "${TARGET_TAG}")"
 			log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 		else
-			local latest_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" 2>/dev/null || true)
-			[[ -z "${latest_tag}" ]] && latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+			local latest_tag=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
 			if [[ -z "${latest_tag}" ]]; then
 				log info "$(t "log_no_tags_found")"
 				PREVIOUS_TAG=""
@@ -67,11 +90,8 @@ function determine_range() {
 					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "HEAD")")"
 				else
 					log info "$(t "log_no_commits_after_tag" "${latest_tag}")"
-					local prev_tag=$(git describe --tags --abbrev=0 --match "v*.*.*" "${latest_tag}^" 2>/dev/null || true)
-					[[ -z "${prev_tag}" ]] && prev_tag=$(git describe --tags --abbrev=0 "${latest_tag}^" 2>/dev/null || true)
-					[[ -z "${prev_tag}" ]] && prev_tag=$(git rev-list --max-parents=0 HEAD | head -n 1 || true)
 					TARGET_TAG="${latest_tag}"
-					PREVIOUS_TAG="${prev_tag}"
+					PREVIOUS_TAG=$(get_previous_tag "${latest_tag}")
 					log success "$(t "log_range_defined" "$(t "log_range_from_to" "${PREVIOUS_TAG}" "${TARGET_TAG}")")"
 				fi
 			fi
