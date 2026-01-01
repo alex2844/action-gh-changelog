@@ -3,6 +3,7 @@ name: Test Action
 on:
   push:
     branches: [main, master]
+  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -13,6 +14,164 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Test - Empty repository (no tags)
+        run: |
+          cd /tmp
+          rm -rf test-no-tags 2>/dev/null || true
+          mkdir test-no-tags
+          cd test-no-tags
+
+          if [[ "$PWD" == *"$GITHUB_WORKSPACE"* ]]; then
+            echo "❌ ОШИБКА: находимся в рабочей директории!"
+            exit 1
+          fi
+
+          git init
+          git config user.name "Test"
+          git config user.email "test@test.com"
+          echo "test" > README.md
+          git add .
+          git commit -m "feat: first feature"
+          echo "test2" >> README.md
+          git add .
+          git commit -m "fix: first fix"
+
+          echo "📝 Test: Repository without tags"
+          OUTPUT=$($GITHUB_WORKSPACE/dist/changelog -q 2>&1)
+          echo "$OUTPUT"
+
+          if ! echo "$OUTPUT" | grep -q "feat: first feature"; then
+            echo "❌ Missing 'feat: first feature'"
+            exit 1
+          fi
+          if ! echo "$OUTPUT" | grep -q "fix: first fix"; then
+            echo "❌ Missing 'fix: first fix'"
+            exit 1
+          fi
+          echo "✅ Test passed"
+
+      - name: Test - Single tag on HEAD
+        run: |
+          cd /tmp
+          rm -rf test-one-tag 2>/dev/null || true
+          mkdir test-one-tag
+          cd test-one-tag
+
+          if [[ "$PWD" == *"$GITHUB_WORKSPACE"* ]]; then
+            echo "❌ ОШИБКА: находимся в рабочей директории!"
+            exit 1
+          fi
+
+          git init
+          git config user.name "Test"
+          git config user.email "test@test.com"
+          echo "test" > README.md
+          git add .
+          git commit -m "feat: initial feature"
+          git tag v1.0.0
+
+          echo "📝 Test: Single tag on HEAD"
+          OUTPUT=$($GITHUB_WORKSPACE/dist/changelog -q 2>&1)
+          echo "$OUTPUT"
+
+          if ! echo "$OUTPUT" | grep -q "feat: initial feature"; then
+            echo "❌ Missing commit"
+            exit 1
+          fi
+          echo "✅ Test passed"
+
+      - name: Test - Multiple tags with unreleased commits
+        run: |
+          cd /tmp
+          rm -rf test-unreleased 2>/dev/null || true
+          mkdir test-unreleased
+          cd test-unreleased
+
+          if [[ "$PWD" == *"$GITHUB_WORKSPACE"* ]]; then
+            echo "❌ ОШИБКА: находимся в рабочей директории!"
+            exit 1
+          fi
+
+          git init
+          git config user.name "Test"
+          git config user.email "test@test.com"
+
+          echo "v1" > file.txt
+          git add .
+          git commit -m "feat: version 1"
+          git tag v1.0.0
+
+          echo "v2" > file.txt
+          git add .
+          git commit -m "feat: version 2"
+          git tag v2.0.0
+
+          echo "unreleased" > file.txt
+          git add .
+          git commit -m "feat: unreleased feature"
+
+          echo "📝 Test: Unreleased commits after tag"
+          OUTPUT=$($GITHUB_WORKSPACE/dist/changelog -q 2>&1)
+          echo "$OUTPUT"
+
+          if ! echo "$OUTPUT" | grep -q "feat: unreleased feature"; then
+            echo "❌ Missing unreleased commit"
+            exit 1
+          fi
+          if echo "$OUTPUT" | grep -q "feat: version 1"; then
+            echo "❌ Showing old commits (should only show unreleased)"
+            exit 1
+          fi
+          echo "✅ Test passed"
+
+      - name: Test - Specific tag
+        run: |
+          cd /tmp
+          rm -rf test-specific-tag 2>/dev/null || true
+          mkdir test-specific-tag
+          cd test-specific-tag
+
+          if [[ "$PWD" == *"$GITHUB_WORKSPACE"* ]]; then
+            echo "❌ ОШИБКА: находимся в рабочей директории!"
+            exit 1
+          fi
+
+          git init
+          git config user.name "Test"
+          git config user.email "test@test.com"
+
+          echo "v1" > file.txt
+          git add .
+          git commit -m "feat: version 1"
+          git tag v1.0.0
+
+          echo "v2" > file.txt
+          git add .
+          git commit -m "feat: version 2"
+          git tag v2.0.0
+
+          echo "v3" > file.txt
+          git add .
+          git commit -m "feat: version 3"
+          git tag v3.0.0
+
+          echo "📝 Test: Specific tag (v2.0.0)"
+          OUTPUT=$($GITHUB_WORKSPACE/dist/changelog -q -t v2.0.0 2>&1)
+          echo "$OUTPUT"
+
+          if ! echo "$OUTPUT" | grep -q "feat: version 2"; then
+            echo "❌ Missing v2.0.0 commit"
+            exit 1
+          fi
+          if echo "$OUTPUT" | grep -q "feat: version 3"; then
+            echo "❌ Showing v3.0.0 (should only show v2.0.0)"
+            exit 1
+          fi
+          echo "✅ Test passed"
 
       - name: Test generation to file
         id: file_test
